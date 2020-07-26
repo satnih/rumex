@@ -25,10 +25,10 @@
 !cfg/yolov3*.cfg
 joao_orig/
 joao_orig_v1/
+pytorch/cs230/
+pytorch/lightning_logs/
 trakomatik/
-lightning_logs/
 .vscode/
-
 pycocotools/*
 results*.txt
 gcp_test*.sh

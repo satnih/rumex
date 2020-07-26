@@ -16,10 +16,10 @@ if train:
     base_filenames = ['WENR_ortho_Rumex_10m_1_nw',
                       'WENR_ortho_Rumex_10m_2_sw',
                       'WENR_ortho_Rumex_10m_4_se']
-    dst_data_path = 'data_temp/train/'
+    dst_data_path = 'data_alexnet/train/'
 else:
     base_filenames = ['WENR_ortho_Rumex_10m_3_ne']
-    dst_data_path = 'data_temp/val/'
+    dst_data_path = 'data_alexnet/val/'
 
 rumex_count = 0
 other_count = 0
