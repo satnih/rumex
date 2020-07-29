@@ -17,10 +17,7 @@ from torch.nn import functional as F
 import pytorch_lightning as pl
 from pytorch_lightning.metrics.functional import stat_scores, f1_score, accuracy
 from pytorch_lightning.metrics.functional import auroc
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection import fasterrcnn_resnet50_fpn
-from torchvision.models.detection import FasterRCNN
-from torchvision.models.detection.rpn import AnchorGenerator
+from torchvision.datasets import ImageFolder, DatasetFolder
 
 # from torch.utils.tensorboard import SummaryWriter
 # plt.ion()   # interactive mode
@@ -28,7 +25,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device('cpu')
 imagenet_mean = [0.485, 0.456, 0.406]
 imagenet_std = [0.229, 0.224, 0.225]
-model_name = 'alexnet'
+model_name = 'mnasnet0_5'
+data_path_tr = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/train/'
+data_path_val = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/val/'
+data_path_te = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/test/'
+max_epochs = 15
+batch_size = 32
 
 
 def load_pretrained(model_name, num_classes):
@@ -49,7 +51,7 @@ def load_pretrained(model_name, num_classes):
         model.classifier[1] = nn.Linear(in_features, num_classes)
     elif model_name == 'shufflenet_v2':
         model = models.shufflenet_v2_x0_5(pretrained=True)
-        in_features = model.classifier[1].in_features
+        in_features = model.fc.in_features
         model.fc = nn.Linear(in_features, num_classes)
     elif model_name == 'densenet201':
         model = models.densenet201(pretrained=True)
@@ -60,6 +62,8 @@ def load_pretrained(model_name, num_classes):
         in_features = model.classifier[1].in_features
         model.classifier[1] = nn.Linear(in_features, num_classes)
     return model
+
+
 # %%
 
 
@@ -74,110 +78,86 @@ class MyModel(pl.LightningModule):
 
     def train_dataloader(self):
         # REQUIRED
-        transforms = T.Compose([T.Resize(224),
-                                T.RandomHorizontalFlip(),
-                                T.RandomVerticalFlip(),
-                                T.ToTensor(),
-                                T.Normalize(imagenet_mean, imagenet_std)])
-        trainset = datasets.ImageFolder(
-            '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/train/', transforms)
+        transforms = T.Compose([
+            T.Resize(224),
+            T.RandomHorizontalFlip(),
+            T.RandomVerticalFlip(),
+            T.ToTensor(),
+            T.Normalize(imagenet_mean, imagenet_std)
+        ])
+        trainset = ImageFolder(data_path_tr, transforms)
 
-        # num_classes = len(trainset.classes)
-        # classcount = trainratio.tolist()
-        # class_weights = 1./torch.tensor(classcount, dtype=torch.float)
-        # train_weights = class_weights[trainset.labels]
-        # train_sampler = WeightedRandomSampler(weights=train_weights,
-        #                                       num_samples=len(train_weights))
-
-        train_dl = DataLoader(trainset,
-                              #   sampler=train_sampler,
-                              batch_size=32,
-                              shuffle=True,
-                              num_workers=12)
-        return train_dl
+        train_loader = DataLoader(trainset,
+                                  batch_size=batch_size,
+                                  shuffle=True,
+                                  num_workers=12)
+        return train_loader
 
     def val_dataloader(self):
         # OPTIONAL
-        transforms = T.Compose([T.Resize(224),
-                                T.ToTensor(),
-                                T.Normalize(imagenet_mean, imagenet_std)])
-        val_ds = datasets.ImageFolder(
-            '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/val/', transforms)
-        val_dl = DataLoader(val_ds, batch_size=32, shuffle=True, num_workers=1)
-        return val_dl
+        transforms = T.Compose([
+            T.Resize(224),
+            T.ToTensor(),
+            T.Normalize(imagenet_mean, imagenet_std)
+        ])
+        valset = ImageFolder(data_path_val, transforms)
+        val_loader = DataLoader(valset,
+                                batch_size=len(valset),
+                                shuffle=False,
+                                num_workers=12)
+        return val_loader
 
-    # def test_dataloader(self):
-    #     # OPTIONAL
-    #     return DataLoader(MNIST(os.getcwd(), train=False, download=True, transform=transforms.ToTensor()), batch_size=32)
-
-    def training_step(self, batch, batch_nb):
+    def training_step(self, batch, batch_idx):
         # REQUIRED
         x, y = batch
         yhat = self(x)
         loss = F.cross_entropy(yhat, y)
-        tensorboard_logs = {'train_loss': loss}
-        return {'loss': loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_nb):
+        # using TrainResult to enable logging
+        result = pl.TrainResult(loss)
+        result.log('train_loss', loss, on_epoch=True)
+
+        return result
+
+    def validation_step(self, batch, batch_idx):
         # OPTIONAL
         x, y = batch
         yhat = self(x)
-        val_loss = F.cross_entropy(yhat, y)
-        val_auc = auroc(yhat, y, pos_label=0)
-        val_cm = torch.Tensor(stat_scores(yhat, y, class_index=1))
-        batch_results = {'val_loss': val_loss,
-                         'val_cm': val_cm,
-                         'val_auc': val_auc}
-        return batch_results
+        loss = F.cross_entropy(yhat, y)
+        auc = auroc(yhat, y, pos_label=0)
+        acc = accuracy(yhat, y)
+        # cm = torch.Tensor(stat_scores(yhat, y, class_index=1))
 
-    def validation_epoch_end(self, outputs):
-        # OPTIONAL
-        val_loss_mean = torch.stack([output['val_loss']
-                                     for output in outputs]).mean()
+        result = pl.EvalResult(early_stop_on=loss, checkpoint_on=loss)
 
-        val_auc_mean = torch.stack([output['val_auc']
-                                    for output in outputs]).mean()
+        result.log('val_loss', loss, prog_bar=True)
+        result.log('val_auc', auc, prog_bar=True)
+        result.log('val_acc', acc, prog_bar=True)
+        return result
 
-        val_cm_total = torch.stack([output['val_cm']
-                                    for output in outputs]).sum(axis=0)
-        tp = val_cm_total[0]
-        fp = val_cm_total[1]
-        tn = val_cm_total[2]
-        fn = val_cm_total[3]
-        precision = tp/(tp+fp)
-        recall = tp/(tp+fn)
-        val_f1 = 2*precision*recall/(precision + recall)
-        tensorboard_logs = {'val_loss': val_loss_mean.item(),
-                            'val_f1': val_f1,
-                            'val_auc': val_auc_mean}
-
-        results = {'progress_bar': tensorboard_logs,
-                   'log': tensorboard_logs}
-        return results
-
-    # def test_step(self, batch, batch_nb):
-    #     # OPTIONAL
-    #     x, y = batch
-    #     yhat = self(x)
-    #     return {'test_loss': F.cross_entropy(yhat, y)}
-
-    # def test_epoch_end(self, outputs):
-    #     # OPTIONAL
-    #     avg_loss = torch.stack([x['test_loss'] for x in outputs]).mean()
-    #     logs = {'test_loss': avg_loss}
-    #     return {'test_loss': avg_loss, 'log': logs, 'progress_bar': logs}
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        yhat = self(x)
+        loss = F.cross_entropy(yhat, y)
+        auc = auroc(yhat, y, pos_label=0)
+        acc = accuracy(yhat, y)
+        result = pl.EvalResult()
+        result.log('test_loss', loss)
+        result.log('test_auc', auc)
+        result.log('test_acc', acc)
+        return result
 
     def configure_optimizers(self):
         # REQUIRED
         # can return multiple optimizers and learning_rate schedulers
         # (LBFGS it is automatically supported, no need for closure function)
-        return torch.optim.SGD(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=1e-3)
 
 
 model = MyModel(model_name)
 # most basic trainer, uses good defaults (1 gpu)
 # trainer = pl.Trainer(gpus=1, max_epochs=5)
-trainer = pl.Trainer(max_epochs=5)
+trainer = pl.Trainer(max_epochs=max_epochs, gpus=1)
 
 # automatic lr finder
 # lr_finder = trainer.lr_find(model)
@@ -189,5 +169,15 @@ trainer = pl.Trainer(max_epochs=5)
 # model.hparams.lr = new_lr
 # %% Train
 trainer.fit(model)
+
 # %% Test
-# trainer.test()
+transforms = T.Compose(
+    [T.Resize(224),
+     T.ToTensor(),
+     T.Normalize(imagenet_mean, imagenet_std)])
+testset = ImageFolder(data_path_te, transforms)
+test_loader = DataLoader(testset, shuffle=True, batch_size=batch_size)
+result = trainer.test(test_dataloaders=test_loader)
+print(result)
+
+# %%

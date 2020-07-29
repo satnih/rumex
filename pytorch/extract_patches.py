@@ -9,17 +9,16 @@ from skimage.draw import rectangle_perimeter
 from sklearn.feature_extraction.image import extract_patches_2d
 import numpy as np
 # %%
-train = 1
+set_type = 'val'
 save = 1
-src_data_path = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/'
-if train:
-    base_filenames = ['WENR_ortho_Rumex_10m_1_nw',
-                      'WENR_ortho_Rumex_10m_2_sw',
-                      'WENR_ortho_Rumex_10m_4_se']
-    dst_data_path = 'data_alexnet/train/'
-else:
+src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/'
+dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/' + set_type + '/'
+if set_type == 'train':
+    base_filenames = ['WENR_ortho_Rumex_10m_1_nw', 'WENR_ortho_Rumex_10m_2_sw']
+elif set_type == 'val':
+    base_filenames = ['WENR_ortho_Rumex_10m_4_se']
+elif set_type == 'test':
     base_filenames = ['WENR_ortho_Rumex_10m_3_ne']
-    dst_data_path = 'data_alexnet/val/'
 
 rumex_count = 0
 other_count = 0
@@ -31,7 +30,7 @@ for base_filename in base_filenames:
     print(base_filename)
     imfile = base_filename + '.png'
     xmlfile = base_filename + '.xml'
-    root = et.parse(src_data_path+xmlfile).getroot()
+    root = et.parse(src_folder + xmlfile).getroot()
     xmlstr = et.tostring(root, encoding='utf-8', method='xml')
     xmldict = dict(xmltodict.parse(xmlstr))
 
@@ -52,26 +51,23 @@ for base_filename in base_filenames:
             bbox = [int(x) for x in bbox]
             rumex.append(bbox)
 
-    im = skio.imread(src_data_path+imfile)
+    im = skio.imread(src_folder + imfile)
     # %% extract 'rumex' patches
-    print('extracting rumex patches')
     for k, box in enumerate(rumex):
         box = [int(x) for x in box]
         xmin = box[0]
         ymin = box[1]
         xmax = box[2]
         ymax = box[3]
-        xmid = xmin + int((xmax-xmin)/2)
-        ymid = ymin + int((ymax-ymin)/2)
-        xmin_new = xmid - int(wanted_patch_size/2)
-        ymin_new = ymid - int(wanted_patch_size/2)
-        xmax_new = xmid + int(wanted_patch_size/2)
-        ymax_new = ymid + int(wanted_patch_size/2)
+        xmid = xmin + int((xmax - xmin) / 2)
+        ymid = ymin + int((ymax - ymin) / 2)
+        xmin_new = xmid - int(wanted_patch_size / 2)
+        ymin_new = ymid - int(wanted_patch_size / 2)
+        xmax_new = xmid + int(wanted_patch_size / 2)
+        ymax_new = ymid + int(wanted_patch_size / 2)
 
-        if((xmin_new > 0) &
-           (ymin_new > 0) &
-           (xmax_new <= im_width) &
-           (ymax_new <= im_height)):
+        if ((xmin_new > 0) & (ymin_new > 0) & (xmax_new <= im_width) &
+            (ymax_new <= im_height)):
             # 1. first extract rumex patch
             # 2. zero-out rumex patch in orthomosaic to extract 'other' patches
             #    later.
@@ -79,14 +75,12 @@ for base_filename in base_filenames:
             im[ymin_new:ymax_new, xmin_new:xmax_new, -1] = 0
             if save:
                 patch_name = str(rumex_count) + '.tiff'
-                skio.imsave(dst_data_path + 'rumex/' + patch_name, patch)
+                skio.imsave(dst_folder + 'rumex/' + patch_name, patch)
             rumex_count += 1
 
     # %% extract other patches
-    print('extracting other patches')
-    im_patches = extract_patches_2d(im,
-                                    (r, c),
-                                    max_patches=1000,
+    im_patches = extract_patches_2d(im, (r, c),
+                                    max_patches=300,
                                     random_state=99)
 
     # keep patches only within the orthomosaic and not overlaping rumex patches
@@ -98,9 +92,9 @@ for base_filename in base_filenames:
         if np.prod(mask) != 0:
             patch_name = str(other_count) + '.tiff'
             if save:
-                skio.imsave(dst_data_path + 'other/' +
-                            patch_name, patch[:, :, :3])
+                skio.imsave(dst_folder + 'other/' + patch_name,
+                            patch[:, :, :3])
             other_count += 1
-print('finished')
+print(f'finished extracting {rumex_count} rumex and {other_count} others')
 
 # %%
