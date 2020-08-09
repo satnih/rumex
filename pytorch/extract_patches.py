@@ -11,8 +11,8 @@ import numpy as np
 # %%
 set_type = 'val'
 save = 1
-src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/'
-dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/' + set_type + '/'
+src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/15m/'
+dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/15m/' + set_type + '/'
 if set_type == 'train':
     base_filenames = ['WENR_ortho_Rumex_10m_1_nw', 'WENR_ortho_Rumex_10m_2_sw']
 elif set_type == 'val':
