@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import os
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from torchvision import datasets
 from torchvision import models
 from torchvision import transforms as T
@@ -26,13 +26,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device('cpu')
 imagenet_mean = [0.485, 0.456, 0.406]
 imagenet_std = [0.229, 0.224, 0.225]
-model_name = 'mobilenet_v2'
-data_path_tr = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/10m/train/'
-data_path_val = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/10m/valid/'
-data_path_te = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/test/10m/'
-max_epochs = 20
-batch_size = 32
-test_flag = 1
 
 
 def load_pretrained(model_name, num_classes):
@@ -72,11 +65,6 @@ class MyModel(pl.LightningModule):
 
         num_classes = 2
 
-        # mobilenet
-        model = models.mobilenet_v2(pretrained=True)
-        in_features = model.classifier[1].in_features
-        model.classifier[1] = nn.Linear(in_features, num_classes)
-
         # # alexnet
         # model = models.alexnet(pretrained=True)
         # model.classifier[6] = nn.Linear(4096, num_classes)
@@ -85,6 +73,21 @@ class MyModel(pl.LightningModule):
         # model = models.resnet18(pretrained=True)
         # in_features = model.fc.in_features
         # model.fc = nn.Linear(in_features, num_classes)
+
+        # # mobilenet
+        # model = models.mobilenet_v2(pretrained=True)
+        # in_features = model.classifier[1].in_features
+        # model.classifier[1] = nn.Linear(in_features, num_classes)
+
+        # # mnasnet0_5
+        # model = models.mnasnet0_5(pretrained=True)
+        # in_features = model.classifier[1].in_features
+        # model.classifier[1] = nn.Linear(in_features, num_classes)
+
+        # shufflenet_v2
+        model = models.shufflenet_v2_x0_5(pretrained=True)
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, num_classes)
 
         self.model = model
 
@@ -101,10 +104,15 @@ class MyModel(pl.LightningModule):
             T.Normalize(imagenet_mean, imagenet_std)
         ])
         trainset = ImageFolder(data_path_tr, transforms)
+        class_weights = np.array([1, 3])
+        sample_weights = class_weights[trainset.targets]
+        sampler = WeightedRandomSampler(weights=sample_weights,
+                                        num_samples=len(trainset),
+                                        replacement=True)
 
         train_loader = DataLoader(trainset,
                                   batch_size=batch_size,
-                                  shuffle=True,
+                                  sampler=sampler,
                                   num_workers=12)
         return train_loader
 
@@ -117,8 +125,8 @@ class MyModel(pl.LightningModule):
         ])
         valset = ImageFolder(data_path_val, transforms)
         val_loader = DataLoader(valset,
-                                batch_size=len(valset),
-                                shuffle=False,
+                                batch_size=100,
+                                shuffle=True,
                                 num_workers=12)
         return val_loader
 
@@ -166,22 +174,53 @@ class MyModel(pl.LightningModule):
         # REQUIRED
         # can return multiple optimizers and learning_rate schedulers
         # (LBFGS it is automatically supported, no need for closure function)
-        return torch.optim.Adam(self.parameters(), lr=1e-3)
+        return torch.optim.RMSprop(self.parameters(), lr=1e-3)
 
 
+data_path_tr = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_2_sw/'
+data_path_val = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_3_ne/'
+data_path_te = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_4_se/'
+max_epochs = 30
+batch_size = 50
+test_flag = 1
 model = MyModel()
+
+
+# %% train model
 # most basic trainer, uses good defaults (1 gpu)
 trainer = pl.Trainer(max_epochs=max_epochs,
                      gpus=1,
                      checkpoint_callback=ModelCheckpoint())
 
-# automatic lr finder
-# lr_finder = trainer.lr_find(model)
-# lr_finder.results
-# # Plot with
-# fig = lr_finder.plot(suggest=True)
-# fig.show()
-# new_lr = lr_finder.suggestion()
-# model.hparams.lr = new_lr
-# %% Train
 trainer.fit(model)
+
+# %% test model
+
+
+def test_dataloader():
+    # OPTIONAL
+    transforms = T.Compose([
+        T.Resize(224),
+        T.ToTensor(),
+        T.Normalize(imagenet_mean, imagenet_std)
+    ])
+    testset = ImageFolder(data_path_te, transforms)
+    test_loader = DataLoader(testset, batch_size=len(testset))
+    return test_loader
+
+
+test_loader = test_dataloader()
+
+
+# best_model_path = 'lightning_logs/version_1/checkpoints/epoch=5.ckpt'
+# best_model = MyModel.load_from_checkpoint(best_model_path)
+for x, y in test_loader:
+    logits = model(x)
+    _, pred = torch.max(logits, 1)
+
+y = y.detach().numpy()
+pred = pred.detach().numpy()
+
+print(f'{np.sum(y == pred)/len(y)}')
+
+# %%
