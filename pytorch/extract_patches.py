@@ -6,95 +6,101 @@ from skimage import exposure
 from skimage.util import img_as_float
 import matplotlib.pyplot as plt
 from skimage.draw import rectangle_perimeter
-from sklearn.feature_extraction.image import extract_patches_2d
+from skimage.util.shape import view_as_blocks
 import numpy as np
+import pandas as pd
 # %%
-set_type = 'val'
 save = 1
-src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/15m/'
-dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_alexnet/15m/' + set_type + '/'
-if set_type == 'train':
-    base_filenames = ['WENR_ortho_Rumex_10m_1_nw', 'WENR_ortho_Rumex_10m_2_sw']
-elif set_type == 'val':
-    base_filenames = ['WENR_ortho_Rumex_10m_4_se']
-elif set_type == 'test':
-    base_filenames = ['WENR_ortho_Rumex_10m_3_ne']
+src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/10m/'
+base_filename = 'WENR_ortho_Rumex_10m_3_ne'
+#  'WENR_ortho_Rumex_10m_1_nw'
+#  'WENR_ortho_Rumex_10m_2_sw'
+#  'WENR_ortho_Rumex_10m_3_ne'
+#  'WENR_ortho_Rumex_10m_4_se'
+
+
+dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data/'
 
 rumex_count = 0
 other_count = 0
-wanted_patch_size = 226
-r = wanted_patch_size
-c = wanted_patch_size
+ps = 224
 
-for base_filename in base_filenames:
-    print(base_filename)
-    imfile = base_filename + '.png'
-    xmlfile = base_filename + '.xml'
-    root = et.parse(src_folder + xmlfile).getroot()
-    xmlstr = et.tostring(root, encoding='utf-8', method='xml')
-    xmldict = dict(xmltodict.parse(xmlstr))
+print(base_filename)
+imfile = base_filename + '.png'
+xmlfile = base_filename + '.xml'
+root = et.parse(src_folder + xmlfile).getroot()
+xmlstr = et.tostring(root, encoding='utf-8', method='xml')
+xmldict = dict(xmltodict.parse(xmlstr))
 
-    im_size = xmldict['annotation']['size']
-    im_height = int(im_size['height'])
-    im_width = int(im_size['width'])
-    im_depth = int(im_size['depth'])
+im_size = xmldict['annotation']['size']
+im_height = int(im_size['height'])
+im_width = int(im_size['width'])
+im_depth = int(im_size['depth'])
 
-    objects = xmldict['annotation']['object']
-    nobjects = len(objects)
 
-    rumex = []
-    for i in range(nobjects):
-        obj_i = objects[i]
-        if obj_i['name'] == 'rumex':
-            temp = obj_i['bndbox']
-            bbox = [temp['xmin'], temp['ymin'], temp['xmax'], temp['ymax']]
-            bbox = [int(x) for x in bbox]
-            rumex.append(bbox)
+# load image and resize it to be multiple of ps
+npatches_w = im_width // ps
+npatches_h = im_height // ps
+im = skio.imread(src_folder + imfile)
+im = im[:npatches_h * ps, :npatches_w * ps, :]
+im_patches = np.squeeze(view_as_blocks(im, (ps, ps, 4)))
 
-    im = skio.imread(src_folder + imfile)
-    # %% extract 'rumex' patches
-    for k, box in enumerate(rumex):
-        box = [int(x) for x in box]
-        xmin = box[0]
-        ymin = box[1]
-        xmax = box[2]
-        ymax = box[3]
-        xmid = xmin + int((xmax - xmin) / 2)
-        ymid = ymin + int((ymax - ymin) / 2)
-        xmin_new = xmid - int(wanted_patch_size / 2)
-        ymin_new = ymid - int(wanted_patch_size / 2)
-        xmax_new = xmid + int(wanted_patch_size / 2)
-        ymax_new = ymid + int(wanted_patch_size / 2)
+im_label = np.zeros(im.shape[:2])
+label_patches = view_as_blocks(im_label, (ps, ps))
 
-        if ((xmin_new > 0) & (ymin_new > 0) & (xmax_new <= im_width) &
-            (ymax_new <= im_height)):
-            # 1. first extract rumex patch
-            # 2. zero-out rumex patch in orthomosaic to extract 'other' patches
-            #    later.
-            patch = im[ymin_new:ymax_new, xmin_new:xmax_new, :3]
-            im[ymin_new:ymax_new, xmin_new:xmax_new, -1] = 0
-            if save:
-                patch_name = str(rumex_count) + '.tiff'
-                skio.imsave(dst_folder + 'rumex/' + patch_name, patch)
-            rumex_count += 1
+# get annotations form xml file
+objects = xmldict['annotation']['object']
+nobjects = len(objects)
+rumex = []
+for i in range(nobjects):
+    obj_i = objects[i]
+    if obj_i['name'] == 'rumex':
+        temp = obj_i['bndbox']
+        bbox = [temp['xmin'], temp['ymin'], temp['xmax'], temp['ymax']]
+        bbox = [int(x) for x in bbox]
 
-    # %% extract other patches
-    im_patches = extract_patches_2d(im, (r, c),
-                                    max_patches=300,
-                                    random_state=99)
+        xmin_r = bbox[0]//ps
+        ymin_r = bbox[1]//ps
+        xmax_r = bbox[2]//ps
+        ymax_r = bbox[3]//ps
 
-    # keep patches only within the orthomosaic and not overlaping rumex patches
-    # NOTE: manual deletion of some extracted patches is required as all rumex
-    #       are not labelled in orthomosaic
-    valid_patches = []
-    for patch in im_patches:
+        if (xmax_r < npatches_w) & (ymax_r < npatches_h):
+            if xmax_r - xmin_r >= 1:
+                x_patches_with_rumex = list(np.arange(xmin_r, xmax_r+1))
+            else:
+                x_patches_with_rumex = [xmin_r]
+
+            if ymax_r - ymin_r >= 1:
+                y_patches_with_rumex = list(np.arange(ymin_r, ymax_r+1))
+            else:
+                y_patches_with_rumex = [ymin_r]
+
+            for col in x_patches_with_rumex:
+                for row in y_patches_with_rumex:
+                    im_label[row:(row+ps), col:(col+ps)] = 1
+                    label_patches[row, col] = 1
+
+for row in np.arange(npatches_h):
+    for col in np.arange(npatches_w):
+        patch_id = npatches_w*row + col
+        patch_name = 'patch_' + str(patch_id) + '.tiff'
+
+        patch = im_patches[row, col]
         mask = patch[:, :, -1]
-        if np.prod(mask) != 0:
-            patch_name = str(other_count) + '.tiff'
+        mask[mask == 255] = 1
+        patch_mask = patch[:, :, -1]
+        label = label_patches[row, col]
+        if np.sum(patch_mask) == np.prod(patch_mask.shape):
+            if np.sum(label) == ps*ps:
+                dst = dst_folder + base_filename + '/rumex/'
+            else:
+                dst = dst_folder + base_filename + '/other/'
             if save:
-                skio.imsave(dst_folder + 'other/' + patch_name,
-                            patch[:, :, :3])
-            other_count += 1
-print(f'finished extracting {rumex_count} rumex and {other_count} others')
+                filename_patch = dst + patch_name
+                print(filename_patch)
+                skio.imsave(filename_patch, patch[:, :, :3])
 
-# %%
+# fig, ax = plt.subplots(1)
+# ax.imshow(im)
+# ax.imshow(im_label, alpha=0.5)
+# # fig.savefig('test.png')
