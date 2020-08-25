@@ -1,7 +1,9 @@
-.ipynb_checkpoints
+.ipynb_*
 .vscode
 __pycache__
 *.png
 *.jpg
-*logs*
-*cs230*
+logs
+cs230_*
+lightning_logs
+runs
