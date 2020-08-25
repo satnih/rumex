@@ -51,7 +51,7 @@ label_patches = view_as_blocks(im_label, (ps, ps))
 # get annotations form xml file
 objects = xmldict['annotation']['object']
 nobjects = len(objects)
-rumex = []
+brumex = []
 for i in range(nobjects):
     obj_i = objects[i]
     if obj_i['name'] == 'rumex':
