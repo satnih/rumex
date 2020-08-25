@@ -1,9 +1,13 @@
+cs230_my
+cs230_orig
+lightning_logs
+alexnet_logs
+resnet18_logs
+events.*
+runs
 .ipynb_*
 .vscode
 __pycache__
 *.png
 *.jpg
-logs
-cs230_*
-lightning_logs
-runs
+*_logs
