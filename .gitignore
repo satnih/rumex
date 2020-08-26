@@ -27,6 +27,9 @@ joao_orig/
 joao_orig_v1/
 pytorch/cs230/
 pytorch/lightning_logs/
+pytorch/*logs
+pytorch/cs230*
+pytorch/runs
 trakomatik/
 .vscode/
 pycocotools/*
