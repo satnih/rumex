@@ -2,17 +2,20 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from contextlib import contextmanager
 from time import time
+import utils as ut
 
 
-def train(model, optimizer, loss_fn, dls, num_epochs, writer, device):
-    train_loader = dls.train
-    val_loader = dls.val
+def train(model, optimizer, loss_fn, dls, num_epochs, log_dir, device):
+    train_loader = dls['train']
+    val_loader = dls['val']
     ntrain = len(train_loader.dataset)
     nval = len(val_loader.dataset)
+    writer = SummaryWriter(log_dir=log_dir)
 
     loss_tr = []
     loss_val = []
@@ -45,6 +48,7 @@ def train(model, optimizer, loss_fn, dls, num_epochs, writer, device):
         y_val = []
         score_val = []
         yhat_val = []
+        best_val_loss = np.inf
         with torch.no_grad():
             model.eval()
             running_loss_val = 0
@@ -55,27 +59,44 @@ def train(model, optimizer, loss_fn, dls, num_epochs, writer, device):
                 # Forward pass
                 score_val_b = model(x_val_b)  # logits
                 _, yhat_val_b = torch.max(score_val_b, 1)
-                lossb_val = loss_fn(score_val_b, y_val_b)
+                loss_val_b = loss_fn(score_val_b, y_val_b)
 
                 # book keeping at batch level
-                running_loss_val += torch.sum(lossb_val)
+                running_loss_val += torch.sum(loss_val_b)
                 y_val.append(y_val_b)
                 score_val.append(score_val_b)
                 yhat_val.append(yhat_val_b)
 
             loss_val = running_loss_val / nval
-            # loss_val.append(loss_val)
+            is_best = loss_val < best_val_loss
 
             # predictions and  metrics
-            y_val = torch.cat(y_val).cpu()
-            score_val = torch.cat(score_val).cpu()
-            yhat_val = torch.cat(yhat_val).cpu()
+            y_val = torch.cat(y_val).cpu().numpy()
+            score_val = torch.cat(score_val).cpu().numpy()
+            yhat_val = torch.cat(yhat_val).cpu().numpy()
 
             acc = accuracy_score(y_val, yhat_val)
             f1 = f1_score(y_val, yhat_val)
             pre = precision_score(y_val, yhat_val)
             recall = recall_score(y_val, yhat_val)
             auc = roc_auc_score(y_val, score_val[:, 1])
+
+            if is_best:
+                ut.save_ckpt({'epoch': ep + 1,
+                              'state_dict': model.state_dict(),
+                              'optim_dict': optimizer.state_dict()},
+                             {'score_val': score_val,
+                                 'loss_val': loss_val,
+                                 'y_val': y_val,
+                                 'yhat_val': yhat_val},
+                             {'epoch': ep+1,
+                                 'acc': acc,
+                                 'f1': f1,
+                                 'pre': pre,
+                                 'recall': recall,
+                                 'auc': auc},
+                             is_best=is_best,
+                             ckpt_dir=log_dir)
 
             # logging
             writer.add_scalar('train/loss', loss_tr, ep)

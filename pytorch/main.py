@@ -7,68 +7,34 @@ import numpy as np
 import pandas as pd
 import torch.nn as nn
 from torch.nn import functional as F
-from torchvision import transforms as T
-from torchvision.datasets import ImageFolder
-from torch.utils.data import Dataset, DataLoader
-from torch.utils.tensorboard import SummaryWriter
+
 from train import train
 from rumex_dataset import RumexDataset
 from models import load_pretrained
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cpu")
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# device = torch.device("cpu")
-
-
-class DotDict:
-    # dot access to dictionary
-    # https: // tinyurl.com/ychsyxgy
-    def __init__(self, **entries):
-        self.__dict__.update(entries)
-
-
-imagenet_mean = [0.485, 0.456, 0.406]
-imagenet_std = [0.229, 0.224, 0.225]
 data_dir = '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/'
-
-# Hyper-parameters
 model_name = 'mobilenet_v2'
-writer = SummaryWriter(comment=model_name)
+log_dir = model_name + '_logs'
 bs = 32
 num_epochs = 10
 num_layers = 2
 lr = 1e-3
 num_classes = 2
 
-tfms_tr = T.Compose([
-    T.Resize(224),
-    T.RandomHorizontalFlip(),
-    T.RandomVerticalFlip(),
-    T.ToTensor(),
-    T.Normalize(imagenet_mean, imagenet_std)
-])
-
-tfms_te = T.Compose([
-    T.Resize(224),
-    T.ToTensor(),
-    T.Normalize(imagenet_mean, imagenet_std)
-])
-
-# dl_tr, dl_va = get_data_loaders(data_dir, bs)
-dl_tr = RumexDataset(data_dir+'train/', tfms_tr).make_data_loader(bs)
-dl_va = RumexDataset(data_dir+'valid/', tfms_te).make_data_loader(bs)
-
 
 # %%
-# model Loss and optimizer
+dl_tr = RumexDataset(data_dir+'train/', train_flag=True).make_data_loader(bs)
+dl_va = RumexDataset(data_dir+'valid/', train_flag=False).make_data_loader(bs)
 model = load_pretrained(model_name, num_classes)
 loss_fn = nn.CrossEntropyLoss(reduction="none")
-optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
+optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 dls = {"train": dl_tr, "val": dl_va}
-dls = DotDict(**dls)
-train(model, optimizer, loss_fn, dls, num_epochs, writer, device)
+train(model, optimizer, loss_fn, dls, num_epochs, log_dir, device)
 # torch.save(model.state_dict(), model_name)
 
 
