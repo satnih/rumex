@@ -31,7 +31,6 @@ def train(model, optimizer, loss_fn, dls, num_epochs, log_dir, device):
             optimizer.zero_grad()
 
             score_tr_b = model(x_tr_b)
-            # loss of each elem in batch
             loss_tr_b = loss_fn(score_tr_b, y_tr_b)
             loss_tr_mean_b = torch.mean(loss_tr_b)
 
