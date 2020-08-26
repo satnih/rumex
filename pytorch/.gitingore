@@ -3,7 +3,6 @@ cs230_orig
 lightning_logs
 alexnet_logs
 resnet18_logs
-events.*
 runs
 .ipynb_*
 .vscode
