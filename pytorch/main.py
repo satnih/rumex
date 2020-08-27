@@ -1,42 +1,37 @@
-# %%
-# -*- coding: utf-8 -*-
-# code adapted from https://github.com/yunjey/pytorch-tutorial
 import torch
-import shutil
-import numpy as np
-import pandas as pd
 import torch.nn as nn
-from torch.nn import functional as F
-
 from train import train
 from rumex_dataset import RumexDataset
-from models import load_pretrained
-from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
-
+from rumex_model import RumexNet
+from torch.nn import functional as F
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 data_dir = '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/'
-model_name = 'mobilenet_v2'
-log_dir = model_name + '_logs'
+model_name = 'shufflenet_v2'
 bs = 32
-num_epochs = 10
-num_layers = 2
+num_epochs = 5
 lr = 1e-3
 num_classes = 2
 
 
-# %%
-dl_tr = RumexDataset(data_dir+'train/', train_flag=True).make_data_loader(bs)
-dl_va = RumexDataset(data_dir+'valid/', train_flag=False).make_data_loader(bs)
-model = load_pretrained(model_name, num_classes)
+dstr = RumexDataset(data_dir+'train/', train_flag=True)
+dl_tr = dstr.make_data_loader(bs)
+
+dsva = RumexDataset(data_dir+'train/', train_flag=False)
+dl_va = dsva.make_data_loader(bs)
+
+model = RumexNet(model_name)
 loss_fn = nn.CrossEntropyLoss(reduction="none")
+
 optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 dls = {"train": dl_tr, "val": dl_va}
-train(model, optimizer, loss_fn, dls, num_epochs, log_dir, device)
-# torch.save(model.state_dict(), model_name)
-
+train(model,
+      optimizer,
+      loss_fn,
+      dls,
+      num_epochs,
+      model_name + '_logs',
+      device)
 
 # # # %% Test model------------------------------------------------------------
 # model = load_pretrained(model_name, num_classes)

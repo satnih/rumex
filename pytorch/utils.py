@@ -5,7 +5,6 @@ import logging
 import os
 import shutil
 import torch
-import pandas as pd
 
 
 def save_ckpt(state_dict, pred_dict, metrics_dict, is_best, ckpt_dir):
@@ -17,15 +16,15 @@ def save_ckpt(state_dict, pred_dict, metrics_dict, is_best, ckpt_dir):
         is_best: (bool) True if it is the best model seen till now
         ckpt_dir: (string) folder where parameters are to be saved
     """
-    filepath = os.path.join(ckpt_dir, 'last.pth.tar')
+    filepath = os.path.join(ckpt_dir, 'last.ptr')
     if not os.path.exists(ckpt_dir):
         print("Checkpoint Directory does not exist! Making directory {}".format(ckpt_dir))
         os.mkdir(ckpt_dir)
     torch.save(state_dict, filepath)
     if is_best:
-        shutil.copyfile(filepath, os.path.join(ckpt_dir, 'best.pth.tar'))
-        save_to_json(pred_dict, os.path.join(ckpt_dir, 'best_pred.json'))
-        save_to_json(metrics_dict, os.path.join(ckpt_dir, 'best_metrics.json'))
+        shutil.copyfile(filepath, os.path.join(ckpt_dir, 'best.pt'))
+        torch.save(pred_dict, os.path.join(ckpt_dir, 'best_pred.pt'))
+        torch.save(metrics_dict, os.path.join(ckpt_dir, 'best_metrics.pt'))
 
 
 def load_ckpt(ckpt_dir, model, optimizer=None):
@@ -57,7 +56,7 @@ def save_to_json(d, json_path):
     """
     with open(json_path, 'w') as f:
         # We need to convert the values to float for json (it doesn't accept np.array, np.float, )
-        d = {k: float(v) for k, v in d.items()}
+        d = {k: v.item() for k, v in d.items()}
         json.dump(d, f, indent=4)
 
 

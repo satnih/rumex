@@ -49,7 +49,6 @@ class MyProgressBar(ProgressBar):
 
 
 class Net(pl.LightningModule):
-
     def __init__(self, model_name, batch_size=50):
         super(Net, self).__init__()
         num_classes = 2

@@ -34,7 +34,9 @@ class RumexDataset(Dataset):
 
     def __getitem__(self, idx):
         x, y = self.rumex[idx]
-        return x, y, idx
+        fname = self.rumex.imgs[idx][0]
+        fname = fname.split('/')[-1]
+        return x, y, idx, fname
 
     def __len__(self):
         return len(self.rumex)
@@ -47,10 +49,10 @@ class RumexDataset(Dataset):
             dl = DataLoader(self,
                             batch_size=bs,
                             sampler=sampler,
-                            drop_last=True)
+                            num_workers=num_workers)
         else:
             dl = DataLoader(self,
-                            batch_size=self.__len__(),
-                            shuffle=False,
+                            batch_size=bs,
+                            shuffle=True,
                             num_workers=num_workers)
         return (dl)
