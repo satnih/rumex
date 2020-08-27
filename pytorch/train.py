@@ -1,109 +1,152 @@
+import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from time import time
 import utils as ut
+from rumex_dataset import RumexDataset
+from rumex_model import RumexNet
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def train(model, optimizer, loss_fn, dls, num_epochs, log_dir, device):
-    train_loader = dls['train']
-    val_loader = dls['val']
-    ntrain = len(train_loader.dataset)
-    nval = len(val_loader.dataset)
+def train(cfg):
+    log_dir = cfg['model_name']+'_logs'
+    dstr = RumexDataset(cfg['data_dir']+'train/', train_flag=True)
+    dsva = RumexDataset(cfg['data_dir']+'valid/', train_flag=False)
+
+    dltr = dstr.make_data_loader(cfg['bs'])
+    dlva = dsva.make_data_loader(cfg['bs'])
+
+    model = RumexNet(cfg['model_name'])
+    loss_fn = nn.CrossEntropyLoss(reduction="none")
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg['lr'])
+
     writer = SummaryWriter(log_dir=log_dir)
 
     model = model.to(device)
-    for ep in np.arange(num_epochs):
+    best_val_loss = np.inf
+    for ep in np.arange(cfg['num_epochs']):
         start = time()
-        running_loss_tr = 0.0
+
+        #### fit model ##########
         model.train()
-        for x_tr_b, y_tr_b, _, _ in train_loader:
-            # Forward pass
-            x_tr_b = x_tr_b.to(device)
-            y_tr_b = y_tr_b.to(device)
-            optimizer.zero_grad()
-
-            score_tr_b = model(x_tr_b)
-            loss_tr_b = loss_fn(score_tr_b, y_tr_b)
-            loss_tr_mean_b = torch.mean(loss_tr_b)
-
-            # Backward and optimize
-            loss_tr_mean_b.backward()
-            optimizer.step()
-
-            running_loss_tr += torch.sum(loss_tr_b)
-
-        loss_tr = running_loss_tr / ntrain
-        # loss_tr.append(loss_tr)
+        loss = fit(model, dltr, optimizer, loss_fn)
 
         ##### Model Validation ##########
-        y_val = []
-        score_val = []
-        loss_val = []
-        best_val_loss = np.inf
-        with torch.no_grad():
-            model.eval()
-            running_loss_val = 0
-            for x_val_b, y_val_b, _, _ in val_loader:
-                x_val_b = x_val_b.to(device)
-                y_val_b = y_val_b.to(device)
+        model.eval()
+        predictions, metrics = validate(model, dlva, loss_fn)
 
-                # Forward pass
-                score_val_b = model(x_val_b)  # logits
-                loss_val_b = loss_fn(score_val_b, y_val_b)
+        ##### checkpoint saving and logging ##########
+        is_best = metrics['loss'] < best_val_loss
+        if ep % cfg['log_freq'] == 0:
+            model_state = {'epoch': ep + 1,
+                           'state_dict': model.state_dict(),
+                           'optim_dict': optimizer.state_dict()}
+            ut.save_ckpt(model, predictions, metrics, is_best, log_dir)
 
-                # book keeping at batch level
-                score_val.append(score_val_b)
-                loss_val.append(loss_val_b)
-                y_val.append(y_val_b)
+        # tensorboad logging
+        writer.add_scalar('train/loss', loss, ep)
+        for key in metrics.keys():
+            name = 'val/'+key
+            writer.add_scalar(name, metrics[key], ep)
+        et = time() - start
 
-            # # predictions and  metrics
-            # score_val = torch.cat(score_val).cpu().numpy()
-            loss_val = torch.cat(loss_val)
-            # y_val = torch.cat(y_val).cpu().numpy()
-            # yhat_val = np.argmax(score_val, 1)
+        print(f"ep:{ep} et:{et:0f}|loss_tr:{loss:.5f}|loss_te: {metrics['loss']:.5f}" +
+              f"|acc:{metrics['acc']:.5f}|re:{metrics['pre']:.5f}|pre:{metrics['recall']:.5f}" +
+              f"|f1:{metrics['f1']:.5f}|auc:{metrics['auc']:.5f}")
 
-            # acc = accuracy_score(y_val, yhat_val)
-            # f1 = f1_score(y_val, yhat_val)
-            # pre = precision_score(y_val, yhat_val)
-            # recall = recall_score(y_val, yhat_val)
-            # auc = roc_auc_score(y_val, score_val[:, 1])
 
-            loss_val_mean = torch.mean(loss_val)
-            is_best = loss_val_mean < best_val_loss
+def fit(model, dl, optimizer, loss_fn):
+    running_loss = 0.0
+    for xb, yb, _, _ in dl:
+        # Forward pass
+        xb = xb.to(device)
+        yb = yb.to(device)
+        optimizer.zero_grad()
 
-            # if ep % 9 == 0:
-            #     if is_best:
-            #         ut.save_ckpt({'epoch': ep + 1,
-            #                       'state_dict': model.state_dict(),
-            #                       'optim_dict': optimizer.state_dict()},
-            #                      {'score_val': score_val[:, 1],
-            #                       'loss_val': loss_val,
-            #                       'y_val': y_val,
-            #                       'yhat_val': yhat_val},
-            #                      {'epoch': ep+1,
-            #                       'acc': acc,
-            #                       'f1': f1,
-            #                       'pre': pre,
-            #                       'recall': recall,
-            #                       'auc': auc},
-            #                      is_best=is_best,
-            #                      ckpt_dir=log_dir)
+        scoreb = model(xb)
+        # loss of each elem in batch
+        lossb = loss_fn(scoreb, yb)
+        lossb_mean = torch.mean(lossb)
 
-            # # logging
-            # writer.add_scalar('train/loss', loss_tr, ep)
-            # writer.add_scalar('val/loss', loss_val_mean, ep)
-            # writer.add_scalar('val/metrics/acc', acc, ep)
-            # writer.add_scalar('val/metrics/auc', auc, ep)
-            # writer.add_scalar('val/metrics/f1', f1, ep)
-            # writer.add_scalar('val/metrics/pre', pre, ep)
-            # writer.add_scalar('val/metrics/recall', recall, ep)
-            et = time() - start
+        # Backward and optimize
+        lossb_mean.backward()
+        optimizer.step()
 
-            # print(f"ep:{ep}|et{et:.3f}|tr: {loss_tr:.5f}|loss: {loss_val_mean:.5f}|acc:{acc:.5f}" +
-            #       f"|f1:{f1:.5f}|auc:{auc:.5f}|pre:{pre:.5f}|recall:{recall:.5f}")
-            print(f"ep:{ep}|et:{et}|tr: {loss_tr:.5f}|val: {loss_val_mean:.5f}")
+        running_loss += torch.sum(lossb)
+
+    loss = running_loss / len(dl.dataset)
+    return loss
+
+
+def validate(model, dl, loss_fn):
+    with torch.no_grad():
+        idx = []
+        fname = []
+        score = []
+        loss = []
+        y = []
+        for xb, yb, _, fnameb in dl:
+            xb = xb.to(device)
+            yb = yb.to(device)
+
+            # Forward pass
+            scoreb = model(xb)  # logits
+            lossb = loss_fn(scoreb, yb)
+
+            # book keeping at batch level
+            score.append(scoreb)
+            loss.append(lossb)
+            # idx.append(idxb)
+            fname.append(fnameb)
+            y.append(yb)
+
+        score = torch.cat(score)
+        loss = torch.cat(loss)
+        # idx = torch.cat(idx)
+        y = torch.cat(y)
+
+        # flatten list of tuples
+        fname = [y for x in fname for y in x]
+
+        # predictions and metrics
+        _, yhat = torch.max(score, 1)
+        loss_mean = torch.mean(loss)
+
+        metrics = compute_metrics(y, yhat, score[:, 1])
+        metrics['loss'] = loss_mean
+
+        predictions = {
+            # 'idx': idx,
+            'fname': fname,
+            'y': y,
+            'yhat': yhat,
+            'score': score[:, 1],
+            'loss': loss}
+
+    return predictions, metrics
+
+
+def compute_metrics(y, yhat, score):
+    tp = torch.sum((y == 1) & (yhat == 1)).float()
+    fp = torch.sum((y == 1) & (yhat == 0)).float()
+    tn = torch.sum((y == 0) & (yhat == 0)).float()
+    fn = torch.sum((y == 0) & (yhat == 1)).float()
+    acc = (tp+tn)/len(y)
+
+    recall = tp/(tp + fn)  # predicted pos/condition pos
+    precision = tn/(tn + fp)  # predicted neg/condition neg
+    f1 = 2*precision*recall/(precision+recall)
+    auc = roc_auc_score(y.cpu().numpy(), score.cpu().numpy())
+    metrics = {
+        'acc': acc,
+        'f1': f1,
+        'pre': precision,
+        'recall': recall,
+        'auc': auc}
+    return metrics

@@ -1,0 +1,7 @@
+data_dir: '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/'
+model_name: 'mobilenet_v2'
+bs: 16
+num_epochs: 5
+lr: 1.0e-3
+gpu: True
+log_freq: 3
