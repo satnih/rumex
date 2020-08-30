@@ -22,6 +22,10 @@
 *.json
 *.cfg
 *.ckpt
+*.pt
+*.pth
+events*
+*logs*
 !cfg/yolov3*.cfg
 joao_orig/
 joao_orig_v1/
