@@ -15,8 +15,8 @@ class RumexDataset(Dataset):
         if train_flag:
             tfms = T.Compose([
                 T.Resize(224),
-                T.RandomHorizontalFlip(),
-                T.RandomVerticalFlip(),
+                # T.RandomHorizontalFlip(),
+                # T.RandomVerticalFlip(),
                 T.ToTensor(),
                 T.Normalize(imagenet_mean, imagenet_std)
             ])
@@ -41,7 +41,7 @@ class RumexDataset(Dataset):
     def __len__(self):
         return len(self.rumex)
 
-    def make_data_loader(self, bs, num_workers=1):
+    def make_data_loader(self, bs=None, num_workers=12):
         if self.train_flag:
             sampler = WeightedRandomSampler(weights=self.sample_weights,
                                             num_samples=self.__len__(),

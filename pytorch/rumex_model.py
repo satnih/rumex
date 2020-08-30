@@ -13,7 +13,7 @@ class RumexNet(nn.Module):
         if model_name == 'alexnet':
             model = models.alexnet(pretrained=True)
             model.classifier[6] = nn.Linear(4096, num_classes)
-        elif model_name == 'resnet18':
+        elif model_name == 'resnet50':
             model = models.resnet18(pretrained=True)
             in_features = model.fc.in_features
             model.fc = nn.Linear(in_features, num_classes)

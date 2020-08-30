@@ -1,7 +1,6 @@
-import yaml
 import argparse
+from utils import load_config
 from trainer import train
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_file',
@@ -11,11 +10,5 @@ parser.add_argument('--config_file',
 
 if __name__ == '__main__':
     args, unknown = parser.parse_known_args()
-
-    def load_config(config_file):
-        with open(config_file) as file:
-            config = yaml.safe_load(file)
-        return config
-
     cfg = load_config(args.config_file)
     train(cfg)

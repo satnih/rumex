@@ -5,6 +5,14 @@ import logging
 import os
 import shutil
 import torch
+import yaml
+
+
+def load_config(config_file):
+    # credit: https://tinyurl.com/y5tyys6a
+    with open(config_file) as file:
+        config = yaml.safe_load(file)
+    return config
 
 
 def save_ckpt(state_dict, pred_dict, metrics_dict, is_best, ckpt_dir):
@@ -22,7 +30,7 @@ def save_ckpt(state_dict, pred_dict, metrics_dict, is_best, ckpt_dir):
         os.mkdir(ckpt_dir)
     torch.save(state_dict, filepath)
     if is_best:
-        shutil.copyfile(filepath, os.path.join(ckpt_dir, 'best.pt'))
+        shutil.copyfile(filepath, os.path.join(ckpt_dir, 'best_model.pt'))
         torch.save(pred_dict, os.path.join(ckpt_dir, 'best_pred.pt'))
         torch.save(metrics_dict, os.path.join(ckpt_dir, 'best_metrics.pt'))
 

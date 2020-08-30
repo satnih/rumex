@@ -31,23 +31,6 @@ imagenet_mean = [0.485, 0.456, 0.406]
 imagenet_std = [0.229, 0.224, 0.225]
 
 
-class MyProgressBar(ProgressBar):
-    def __init__(self,):
-        super().__init__()
-
-    def init_validation_tqdm(self) -> tqdm:
-        """ Override this to customize the tqdm bar for validation. """
-        bar = tqdm(
-            desc='Validating',
-            position=(2 * self.process_position + 1),
-            disable=True,
-            leave=False,
-            dynamic_ncols=True,
-            file=sys.stdout
-        )
-        return bar
-
-
 class Net(pl.LightningModule):
     def __init__(self, model_name, batch_size=50):
         super(Net, self).__init__()
@@ -75,16 +58,15 @@ class Net(pl.LightningModule):
             model = models.densenet201(pretrained=True)
             in_features = model.classifier.in_features
             model.classifier = nn.Linear(in_features, num_classes)
-        elif model_name == 'mnasnet0_5':
+        elif model_name == 'mnasnet':
             model = models.mnasnet0_5(pretrained=True)
             in_features = model.classifier[1].in_features
             model.classifier[1] = nn.Linear(in_features, num_classes)
 
         self.model = model
         self.bs = batch_size
-        self.data_path_tr = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_2_sw/'
-        self.data_path_val = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_3_ne/'
-        self.data_path_te = '/u/21/hiremas1/unix/postdoc/rumex/data/WENR_ortho_Rumex_10m_4_se/'
+        self.data_path_tr = '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/train/'
+        self.data_path_val = '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/valid/'
 
     def forward(self, x):
         return self.model(x)
@@ -120,7 +102,8 @@ class Net(pl.LightningModule):
         ])
         valset = ImageFolder(self.data_path_val, transforms)
         val_loader = DataLoader(valset,
-                                batch_size=len(valset),
+                                batch_size=32,
+                                shuffle=True,
                                 num_workers=12)
         return val_loader
 
@@ -170,30 +153,35 @@ class Net(pl.LightningModule):
         # REQUIRED
         # can return multiple optimizers and learning_rate schedulers
         # (LBFGS it is automatically supported, no need for closure function)
-        return torch.optim.RMSprop(self.parameters(), lr=1e-3)
+        return torch.optim.Adam(self.parameters(), lr=5e-3)
 
 
 # %%
-def start_training(model_name):
-    max_epochs = 100
-    model = Net(model_name)
-    logger = TensorBoardLogger(save_dir=os.getcwd(),
-                               name=model_name+'_logs')
+model_name = 'resnet18'
+max_epochs = 20
+bs = 32
+model = Net(model_name, bs)
+logger = TensorBoardLogger(save_dir=os.getcwd(),
+                           name=model_name+'_logs')
 
-    bar = MyProgressBar()
-    trainer = pl.Trainer(max_epochs=max_epochs,
-                         #  gpus=0,
-                         logger=logger,
-                         deterministic=True,
-                         callbacks=[bar],
-                         checkpoint_callback=ModelCheckpoint())
+trainer = pl.Trainer(max_epochs=max_epochs,
+                     gpus=1,
+                     logger=logger,
+                     deterministic=True,
+                     checkpoint_callback=ModelCheckpoint())
 
-    # # Run learning rate finder
-    # lr_finder = trainer.lr_find(model)
-    # fig = lr_finder.plot(suggest=True)
-    # fig.save(model_name+'.png')
-    # model.hparams.lr = lr_finder.suggestion()
-    trainer.fit(model)
+# Run learning rate finder
+lr_finder = trainer.lr_find(model)
+# fig = lr_finder.plot(suggest=True)
+# fig.save(model_name+'.png')
+print(lr_finder.suggestion())
+model.hparams.lr = lr_finder.suggestion()
+trainer.fit(model)
+
+# Best lr
+# shufflenetv2: 1e-2
+# alexnet: 3e-2
+# mnasnet: 6e-2
 
 # %% test model
 

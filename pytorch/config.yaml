@@ -1,7 +1,11 @@
 data_dir: '/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/'
-model_name: 'mobilenet_v2'
-bs: 16
-num_epochs: 5
-lr: 1.0e-3
-gpu: True
-log_freq: 3
+bs: 32
+num_epochs: 50
+model_name: 'shufflenet_v2'
+lr: 5.0e-3
+
+
+# # mnasnet
+# wd = 0.9 #from paper 
+# momentum = 0.9 # from paper
+# lr = 9.0e-4 # from lr finder
