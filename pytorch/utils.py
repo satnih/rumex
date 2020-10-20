@@ -6,6 +6,8 @@ import os
 import shutil
 import torch
 import yaml
+from sklearn.metrics import accuracy_score, precision_score
+from sklearn.metrics import recall_score, f1_score, roc_auc_score
 
 
 def load_config(config_file):
@@ -15,24 +17,36 @@ def load_config(config_file):
     return config
 
 
-def save_ckpt(state_dict, pred_dict, metrics_dict, is_best, ckpt_dir):
-    """Saves model and training parameters at ckpt_dir + 'last.pth.tar'. If is_best==True, also saves
-    ckpt_dir + 'best.pth.tar'
-
+def save_ckpt(ckpt_dict, ckpt_dir):
+    """Save  checkpoint and predictions 
     Args:
-        state: (dict) contains model's state_dict, 
-        is_best: (bool) True if it is the best model seen till now
+        ckpt_dict: (dict) contains model's state_dict, 
         ckpt_dir: (string) folder where parameters are to be saved
     """
-    filepath = os.path.join(ckpt_dir, 'last.ptr')
+    filepath = os.path.join(ckpt_dir, 'best.pt')
     if not os.path.exists(ckpt_dir):
-        print("Checkpoint Directory does not exist! Making directory {}".format(ckpt_dir))
         os.mkdir(ckpt_dir)
-    torch.save(state_dict, filepath)
-    if is_best:
-        shutil.copyfile(filepath, os.path.join(ckpt_dir, 'best_model.pt'))
-        torch.save(pred_dict, os.path.join(ckpt_dir, 'best_pred.pt'))
-        torch.save(metrics_dict, os.path.join(ckpt_dir, 'best_metrics.pt'))
+    torch.save(ckpt_dict, filepath)
+
+
+def compute_metrics(y, yhat, score):
+    tp = torch.sum((y == 1) & (yhat == 1)).float()
+    tn = torch.sum((y == 0) & (yhat == 0)).float()
+    fp = torch.sum((y == 1) & (yhat == 0)).float()
+    fn = torch.sum((y == 0) & (yhat == 1)).float()
+    acc = (tp+tn)/len(y)
+    recall = tp/(tp + fn)  # predicted pos/condition pos
+    precision = tp/(tp + fp)  # predicted neg/condition neg
+    f1 = 2*precision*recall/(precision+recall)
+    auc = roc_auc_score(y.cpu().numpy(), score.cpu().numpy())
+    metrics = {
+        'acc': acc,
+        'f1': f1,
+        'pre': precision,
+        'recall': recall,
+        'auc': auc
+    }
+    return metrics
 
 
 def load_ckpt(ckpt_dir, model, optimizer=None):

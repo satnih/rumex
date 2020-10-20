@@ -14,15 +14,16 @@ class RumexDataset(Dataset):
         self.train_flag = train_flag
         if train_flag:
             tfms = T.Compose([
-                T.Resize(224),
-                # T.RandomHorizontalFlip(),
-                # T.RandomVerticalFlip(),
+                T.Resize(128),
+                T.RandomHorizontalFlip(),
+                T.RandomVerticalFlip(),
+                # T.ColorJitter(),
                 T.ToTensor(),
                 T.Normalize(imagenet_mean, imagenet_std)
             ])
         else:
             tfms = T.Compose([
-                T.Resize(224),
+                T.Resize(128),
                 T.ToTensor(),
                 T.Normalize(imagenet_mean, imagenet_std)
             ])
@@ -41,18 +42,15 @@ class RumexDataset(Dataset):
     def __len__(self):
         return len(self.rumex)
 
-    def make_data_loader(self, bs=None, num_workers=12):
-        if self.train_flag:
-            sampler = WeightedRandomSampler(weights=self.sample_weights,
-                                            num_samples=self.__len__(),
-                                            replacement=True)
-            dl = DataLoader(self,
-                            batch_size=bs,
-                            sampler=sampler,
-                            num_workers=num_workers)
-        else:
-            dl = DataLoader(self,
-                            batch_size=bs,
-                            shuffle=True,
-                            num_workers=num_workers)
-        return (dl)
+
+def train_loader(ds, bs):
+    sampler = WeightedRandomSampler(weights=ds.sample_weights,
+                                    num_samples=len(ds),
+                                    replacement=True)
+    dl = DataLoader(ds, batch_size=bs, sampler=sampler, num_workers=12)
+    return dl
+
+
+def test_loader(ds, bs):
+    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=12)
+    return dl

@@ -16,12 +16,13 @@ src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/10m/'
 # base_filename = 'WENR_ortho_Rumex_10m_2_sw'
 # base_filename = 'WENR_ortho_Rumex_10m_3_ne'
 base_filename = 'WENR_ortho_Rumex_10m_4_se'
+ps = 256
 
-dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data227/'
+dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data' + str(ps) + '/'
 
 rumex_count = 0
 other_count = 0
-ps = 227
+
 
 print(base_filename)
 imfile = base_filename + '.png'

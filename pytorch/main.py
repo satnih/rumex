@@ -1,5 +1,5 @@
 import argparse
-from lightning import lightning_trainer
+from trainer import trainer
 
 # resnet: lr [1e-4, 1e-3]
 # mobilenet: lr [1e-4, 1e-3]
@@ -12,7 +12,8 @@ parser.add_argument('--model_name', default="shufflenet")
 parser.add_argument('--num_epoch', default=5, type=int)
 parser.add_argument('--min_lr', default=1e-4, type=float)
 parser.add_argument('--max_lr', default=1e-2, type=float)
+parser.add_argument('--gpu', default=True, type=bool)
 
 if __name__ == '__main__':
     args, unknown = parser.parse_known_args()
-    lightning_trainer(args)
+    trainer(args)
