@@ -1,141 +1,168 @@
-import pandas as pd
-import numpy as np
 import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from time import time
+import logging
+import argparse
+import numpy as np
 import utils as ut
-from rumex_dataset import RumexDataset, train_loader, test_loader
-from rumex_model import RumexNet
-from torch_lr_finder import LRFinder
+from time import time
+from torch import optim
+from pathlib import Path
+# from torch.utils.tensorboard import SummaryWriter
 
 
 def trainer(cfg):
     gpu = cfg.gpu & torch.cuda.is_available()
     device = torch.device("cuda" if gpu else "cpu")
-    log_dir = cfg['model_name']+'_logs'
-    dstr = RumexDataset(cfg['data_dir']+'valid/', train_flag=True)
-    dsva = RumexDataset(cfg['data_dir']+'train/', train_flag=False)
 
-    dltr = train_loader(dstr, cfg['bs'])
-    dlva = test_loader(dsva, 2*cfg['bs'])
-
-    model = RumexNet(cfg['model_name'])
-    loss_fn = nn.CrossEntropyLoss(reduction="none")
-
-    optimizer = torch.optim.Adam(model.parameters(),
-                                 lr=cfg['lr'],
-                                 weight_decay=1e-2)
-
+    eq50 = '=' * 50
+    exp_name = cfg.model_name
+    log_dir = ut.set_logger(Path.cwd() / "logs" / exp_name)
     # writer = SummaryWriter(log_dir=log_dir)
+    logging.info(eq50 + 'training started' + eq50)
+    logging.info(cfg)
 
-    best_val_loss = np.inf
-    for ep in np.arange(cfg['num_epochs']):
+    # dataset and data loader
+    dstr = ut.RumexDataset(cfg.data_dir+'valid/', train_flag=True)
+    dsva = ut.RumexDataset(cfg.data_dir+'train/', train_flag=False)
+    dltr = ut.train_loader(dstr, cfg.bs)
+    dlva = ut.test_loader(dsva, 2*cfg.bs)
+
+    ntr = len(dstr)
+    n1tr = dstr.rumex.targets.count(1)
+    n0tr = dstr.rumex.targets.count(0)
+
+    nva = len(dsva)
+    n1va = dsva.rumex.targets.count(1)
+    n0va = dsva.rumex.targets.count(0)
+    logging.info(f"(train):{ntr,n1tr,n0tr}, (valid):{nva,n1va,n0va}")
+
+    # model and optimizer
+    model = ut.RumexNet(cfg.model_name)
+    model.to(device)
+    loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+
+    # training loop
+    best_mean_lossva = np.inf
+    loss_history = torch.zeros((cfg.num_epochs, 2))
+    for ep in np.arange(cfg.num_epochs):
         start = time()
 
-        #### fit model ##########
-        loss = train(model, dltr, optimizer, loss_fn, device)
-
-        ##### Model Validation ##########
-        predictions, metrics = validate(model, dlva, loss_fn, device)
-
-        ##### checkpoint saving and logging ##########
-    if (metrics['loss'] < best_val_loss) & (metrics['acc'] > best_val_acc):
-        best_val_loss = metrics['loss']
-        best_val_acc = metrics["acc"]
-        ckpt_dict = {'ep': ep,
-                     'state_dict': model.state_dict(),
-                     'optim_dict': optimizer.state_dict(),
-                     'predictions': predictions,
-                     'metrics': metrics}
-
-        ut.save_ckpt(ckpt_dict, log_dir)
-
-        # # tensorboad logging
-        # writer.add_scalar('train/loss', loss, ep)
-        # for key in metrics.keys():
-        #     name = 'val/'+key
-        #     writer.add_scalar(name, metrics[key], ep)
-        # et = time() - start
-
-        print(f"ep:{ep} et:{et:0f}|loss_tr:{loss:.5f}|loss: {metrics['loss']:.5f}" +
-              f"|acc:{metrics['acc']:.5f}|re:{metrics['pre']:.5f}" +
-              f"|pre:{metrics['recall']:.5f}|f1:{metrics['f1']:.5f}")
-
-
-def train(model, dl, optimizer, scheduler, loss_fn, device):
-    model.to(device)
-    model.train()
-    running_loss = 0.0
-    for xb, yb, _, _ in dl:
-        # Forward pass
-        xb = xb.to(device)
-        yb = yb.to(device)
-        scoreb = model(xb)
-        # loss of each elem in batch
-        lossb = loss_fn(scoreb, yb)
-        lossb_mean = torch.mean(lossb)
-
-        # Backward and optimize
-        lossb_mean.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        scheduler.step()
-        running_loss += torch.sum(lossb)
-
-    loss = running_loss / len(dl.dataset)
-    return loss
-
-
-def validate(model, dl, loss_fn, device):
-    model.to(device)
-    model.eval()
-    with torch.no_grad():
-        fname = []
-        score = []
-        loss = []
-        y = []
-        yhat = []
-        for xb, yb, _, fnameb in dl:
-            xb = xb.to(device)
-            yb = yb.to(device)
-
+        #### train model ##########
+        model.train()
+        running_losstr = 0.0
+        for xtrb, ytrb, _, _ in dltr:
             # Forward pass
-            scoreb = model(xb)  # logits
-            _, yhatb = torch.max(scoreb, 1)
-            lossb = loss_fn(scoreb, yb)
+            xtrb = xtrb.to(device)
+            ytrb = ytrb.to(device)
+            scorebtr = model(xtrb)
+            # loss of each elem in batch
+            losstrb = loss_fn(scorebtr, ytrb)
 
-            # book keeping at batch level
-            score.append(scoreb)
-            yhat.append(yhatb)
-            loss.append(lossb)
-            fname.append(fnameb)
-            y.append(yb)
+            # Backward and optimize
+            lossbtr_mean = torch.mean(losstrb)
+            lossbtr_mean.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+            # scheduler.step()
+            running_losstr += torch.sum(losstrb)
 
-        score = torch.cat(score)
-        loss = torch.cat(loss)
-        y = torch.cat(y)
-        yhat = torch.cat(yhat)
+        losstr_mean = running_losstr / ntr
 
-        # flatten list of tuples
-        fname = [y for x in fname for y in x]
+        ##### validate model ##########
+        model.eval()
+        with torch.no_grad():
+            fnameva = []
+            scoreva = []
+            yva = []
+            yhatva = []
+            lossva = []
+            for xvab, yvab, _, fnamevab in dlva:
+                xvab = xvab.to(device)
+                yvab = yvab.to(device)
 
-        # predictions and metrics
-        # _, yhat = torch.max(score, 1)
-        loss_mean = torch.mean(loss)
+                # Forward pass
+                scorevab = model(xvab)  # logits
+                lossvab = loss_fn(scorevab, yvab)
+                _, yhatvab = torch.max(scorevab, 1)
 
-        metrics = ut.compute_metrics(y, yhat, score[:, 1])
-        metrics['loss'] = loss_mean
+                # book keeping at batch level
+                fnameva.append(fnamevab)
+                lossva.append(lossvab)
+                scoreva.append(scorevab)
+                yhatva.append(yhatvab)
+                yva.append(yvab)
 
-        predictions = {
-            # 'idx': idx,
-            'fname': fname,
-            'y': y,
-            'yhat': yhat,
-            'score': score[:, 1],
-            'loss': loss}
+            lossva = torch.cat(lossva)
+            lossva_mean = torch.mean(lossva)  # mean validation loss for ep
 
-    return predictions, metrics
+            scoreva = torch.cat(scoreva)
+            yva = torch.cat(yva)
+            yhatva = torch.cat(yhatva)
+            fname = [b for a in fnameva for b in a]  # flatten list of tuples
+
+            # flatten
+            predictions = {
+                'yva': yva,
+                'yhatva': yhatva,
+                'scoreva': scoreva[:, 1],
+                'lossva': lossva
+            }
+
+            # metrics
+            metrics = ut.compute_metrics(yva, yhatva, scoreva[:, 1])
+
+            ##### checkpoint saving ##########
+            if lossva_mean < best_mean_lossva:
+                best_mean_lossva = lossva_mean
+                ckpt_dict = {
+                    'ep': ep,
+                    'state_dict': model.state_dict(),
+                    'optim_dict': optimizer.state_dict(),
+                    'predictions': predictions,
+                    'metrics': metrics,
+                    'best_mean_lossva': lossva_mean
+                }
+                torch.save(ckpt_dict, log_dir / "best.pt")
+
+            # # tensorboad logging
+            # writer.add_scalar('train/loss', loss, ep)
+            # for key in metrics.keys():
+            #     name = 'val/' + key
+            #     writer.add_scalar(name, metrics[key], ep)
+
+            et = time() - start
+            logging.info(f"ep:{ep}|" +
+                         f"et:{et:.0f}|" +
+                         f"losstr:{losstr_mean:.5f}|" +
+                         f"lossva:{lossva_mean:.5f}|" +
+                         f"acc:{metrics['acc']:.5f}|" +
+                         f"re:{metrics['pre']:.5f}|" +
+                         f"pre:{metrics['recall']:.5f}|" +
+                         f"f1:{metrics['f1']:.5f}")
+            # store history
+            loss_history[ep, 0] = losstr_mean  # training loss
+            loss_history[ep, 1] = lossva_mean  # validation loss
+
+    torch.save(loss_history, log_dir / "loss_history.pt")
+    logging.info(eq50 + 'training ended' + eq50)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--data_dir', type=str,
+                    default="~/postdoc/rumex/data256_for_training/")
+parser.add_argument('--model_name', type=str, default="shufflenet")
+parser.add_argument('--num_epochs', type=int, default=5)
+parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--bs', type=int, default=64)
+parser.add_argument('--gpu', type=bool, default=True)
+
+# optimal LR ranges for different models: use max_lr if not using scheduler
+# resnet: [1e-4, 1e-3]
+# densenet: [1e-4, 1e-3]
+# mnasnet: [1e-4, 1e-3]
+# mobilenet: [1e-4, 7e-3]
+# shufflenet: [5e-3, 5e-2]
+
+if __name__ == '__main__':
+    args, unknown = parser.parse_known_args()
+    trainer(args)

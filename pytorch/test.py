@@ -1,64 +1,14 @@
-# from rumex_model import RumexNet
-# # # %% Test model------------------------------------------------------------
-# model_name = "shufflenet"
-# data_dir = ""
-# ckpt_dir = "logs_from_triton/shufflenet_logs/best.pt"
-# model = RumexNet(model_name)
-# model.load_state_dict(torch.load(ckpt_dir)
-# model.eval()
-
-# dlte=RumexDataset(data_dir+'test_uncleanded/', tfms_te).make_data_loader(bs)
-# ntest=len(dlte.dataset)
-# nrumex=np.sum(dlte.dataset.targets)
-# nother=ntest - nrumex
-
-# y_te=[]
-# score_te=[]
-# loss_te=[]
-# yhat_te=[]
-# for ib, (xteb, yteb) in enumerate(dlte):
-#     xteb=xteb.to(device)
-#     yteb=yteb.to(device)
-
-#     # Forward pass
-#     score_te_b=model(xteb)  # logits
-#     loss_tr_b=loss_fn(score_te_b, yteb)
-#     _, yhat_te_b=torch.max(score_te_b, 1)
-
-#     # book keeping at batch level
-#     y_te.append(yteb)
-#     score_te.append(score_te_b)
-#     yhat_te.append(yhat_te_b)
-
-# # predictions and  metrics
-# y_te=torch.cat(y_te).cpu().detach()
-# score_te=torch.cat(score_te).cpu().detach()
-# loss_te=torch.cat(loss_te).cpu().detach()
-# yhat_te=torch.cat(yhat_te).cpu().detach()
-
-# acc_te=accuracy_score(y_te, yhat_te)
-# f1_te=f1_score(y_te, yhat_te)
-# pre_te=precision_score(y_te, yhat_te)
-# recall_te=recall_score(y_te, yhat_te)
-# auc_te=roc_auc_score(y_te, score_te[:, 1])
-
-# print(f"{model_name}|#rumex:{nrumex}|#other:{nother}")
-# print(f"acc:{acc_te:.5f}|auc:{auc_te:.5f}|f1:{f1_te:.5f}" +
-#       f"|pre:{pre_te:.5f}|recall:{recall_te:.5f}")
-
-# %%
-
-
 # # %% Test model------------------------------------------------------------
-import os
-import pandas as pd
-import numpy as np
-import itertools
 import torch
-import torch.nn as nn
-from rumex_dataset import RumexDataset
-from rumex_model import RumexNet
-from models import load_pretrained
+import logging
+import itertools
+import numpy as np
+import utils as ut
+import pandas as pd
+from time import time
+from torch import optim
+from pathlib import Path
+
 from sklearn.metrics import accuracy_score, f1_score, precision_score
 from sklearn.metrics import roc_auc_score, recall_score
 from skimage import io as skio
@@ -66,13 +16,20 @@ from skimage.exposure import rescale_intensity
 import matplotlib.pyplot as plt
 device = torch.device("cpu")
 
-data_dir = "/u/21/hiremas1/unix/postdoc/rumex/data_for_fastai_cleaned/"
-dste = RumexDataset(data_dir+'test_uncleaned/', train_flag=0)
-dlte = dste.make_data_loader(bs=32)
-ntest = len(dste)
-nrumex = np.sum(dste.rumex.targets)
-nother = ntest - nrumex
-model = torch.load("logs_from_triton/shufflenet_logs/best.pt")
+model_name = "shufflenet"
+model_dir = "logs/"+model_name+"/"
+
+# dataset and data loader
+data_dir = "~/postdoc/rumex/data256_for_training/"
+dste = ut.RumexDataset(data_dir+'train/', train_flag=False)
+dlte = ut.train_loader(dste, 64)
+
+nte = len(dste)
+n1te = dste.rumex.targets.count(1)
+n0te = dste.rumex.targets.count(0)
+
+
+model = torch.load(model_dir+"best.pt")
 model.to(device)
 
 y_te = []
@@ -80,7 +37,7 @@ score_te = []
 loss_te = []
 yhat_te = []
 fname_te = []
-loss_fn = nn.CrossEntropyLoss(reduction="none")
+loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
 for xteb, yteb, idb, fnameb in dlte:
     xteb = xteb.to(device)
     yteb = yteb.to(device)
@@ -112,6 +69,7 @@ pred = {"fname": fname_te,
         "loss": loss_te}
 
 df = pd.DataFrame.from_dict(pred)
+df.to_csv(model_name+"_test_predictions.csv")
 df.sort_values("loss", ascending=False, ignore_index=True, inplace=True)
 
 
