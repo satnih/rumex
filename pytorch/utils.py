@@ -231,7 +231,7 @@ def train_loader(ds, bs):
 
 
 def test_loader(ds, bs):
-    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=12)
+    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=0)
     return dl
 
 

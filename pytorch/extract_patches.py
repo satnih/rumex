@@ -1,3 +1,4 @@
+import os
 import xml.etree.ElementTree as et
 import xmltodict
 from PIL import Image
@@ -11,14 +12,23 @@ import numpy as np
 import pandas as pd
 # %%
 save = 1
-src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/10m/'
+fh = "15m"  # flying height
+ps = 256
+src_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_orig/' + fh + '/'
+
+# 10m files
 # base_filename = 'WENR_ortho_Rumex_10m_1_nw'
 # base_filename = 'WENR_ortho_Rumex_10m_2_sw'
 # base_filename = 'WENR_ortho_Rumex_10m_3_ne'
-base_filename = 'WENR_ortho_Rumex_10m_4_se'
-ps = 256
+# base_filename = 'WENR_ortho_Rumex_10m_4_se'
 
-dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data' + str(ps) + '/'
+# 15m files
+# base_filename = 'WENR_ortho_Rumex_15m_2_sw'
+base_filename = 'WENR_ortho_Rumex_15m_4_se'
+
+
+dst_folder = '/u/21/hiremas1/unix/postdoc/rumex/data_patches/' + \
+    fh + '/' + str(ps) + '/'
 
 rumex_count = 0
 other_count = 0
@@ -93,6 +103,10 @@ for row in np.arange(npatches_h):
                 dst = dst_folder + base_filename + '/rumex/'
             else:
                 dst = dst_folder + base_filename + '/other/'
+
+            if not os.path.exists(dst):
+                os.makedirs(dst)
+
             if save:
                 filename_patch = dst + patch_name
                 print(filename_patch)
