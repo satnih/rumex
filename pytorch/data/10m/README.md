@@ -1,0 +1,3 @@
+-trainset: WENR_ortho_Rumex_10m_2_sw
+-validset: WENR_ortho_Rumex_10m_3_ne
+-testset: WENR_ortho_Rumex_10m_1_nw, WENR_ortho_Rumex_10m_4_se
