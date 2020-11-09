@@ -1,282 +1,300 @@
 import torch
-import logging
-import argparse
+# import logging
+# import argparse
 import numpy as np
 import utils as ut
 from time import time
 from torch import optim
-from pathlib import Path
+# from pathlib import Path
 # from torch.utils.tensorboard import SummaryWriter
 
-# def train(model, dl, optimizer, scheduler, loss_fn, device):
-#     model.to(device)
-#     model.train()
-#     running_loss = 0.0
-#     for xb, yb in dl:
-#         # Forward pass
-#         xb = xb.to(device)
-#         yb = yb.to(device)
-#         scoreb = model(xb)
-#         lossb = loss_fn(scoreb, yb)
 
-#         # Backward and optimize
-#         lossb_mean = torch.mean(lossb)
-#         lossb_mean.backward()
-#         optimizer.step()
-#         optimizer.zero_grad()
-#         # scheduler.step()
-#         running_loss += torch.sum(lossb)
+class Trainer(object):
+    def __init__(self,
+                 max_ep=10,
+                 patience=5,
+                 model=None,
+                 optimizer=None,
+                 scheduler=None,
+                 loss_fn=None,
+                 dltr=None,
+                 dlva=None,
+                 dlte=None,
+                 bs=None,
+                 device=None,
+                 log_dir="logs_temp",
+                 exp_name="temp"):
 
-#     losstr_mean = running_loss / len(dl.dataset)
-#     return losstr_mean
+        # TODO: add comments to the code
+        # TODO: set deraults to reasonable values
+        # TODO: add code for best LR finder
 
+        self.device = device
+        self.exp_name = exp_name
+        self.log_dir = log_dir
 
-def test(log_dir, cfg, dl, loss_fn, device):
-    best_ckpt = torch.load(log_dir / "best.pt")
+        # # self.writer = SummaryWriter(log_dir=log_dir)
+        # logging.info(eq50 + 'training started' + eq50)
+        # logging.info(cfg)
 
-    model = ut.RumexNet(cfg.model_name)
-    model.load_state_dict(best_ckpt["state_dict"])
-    model.to(device)
-    model.eval()
-    with torch.no_grad():
-        score = []
-        loss = []
-        y = []
-        yhat = []
-        ids = []
-        for xb, yb, _ in dl:
-            xb = xb.to(device)
-            yb = yb.to(device)
+        # model, optmizer and loss_fn
+        self.init_model = model
+        self.model = model
+        self.model.to(self.device)
+        self.optimizer = optimizer
+        # self.scheduler = scheduler
+        self.loss_fn = loss_fn
 
-            # Forward pass
-            scoreb = model(xb)  # logits
-            _, yhatb = torch.max(scoreb, 1)
-            lossb = loss_fn(scoreb, yb)
+        # dataset and data loader
+        self.bs = bs
+        self.dltr = dltr
+        self.dlva = dlva
+        self.dlte = dlte
 
-            # book keeping at batch level
-            score.append(scoreb)
-            yhat.append(yhatb)
-            loss.append(lossb)
-            y.append(yb)
+        # training state
+        # self.lr = cfg.lr
+        self.training = False
+        self.testing = False
+        self.validating = False
+        self.current_ep = 0
+        self.current_losstr = np.inf
+        self.current_lossva = np.inf
+        self.current_losste = np.inf
 
-        score = torch.cat(score)
-        loss = torch.cat(loss)
-        y = torch.cat(y)
-        yhat = torch.cat(yhat)
+        self.es_ep = 0
+        self.patience = patience
+        self.patience_counter = 0
 
-        predictions = {
-            'y': y,
-            'yhat': yhat,
-            'score': score[:, 1],
-            'loss': loss
-        }
+        self.best_lossva = np.inf
+        self.max_ep = max_ep
 
-        # metrics
-        metrics = ut.compute_metrics(y, yhat, score[:, 1])
-        metrics['loss'] = torch.mean(loss)
+        self.start_time = None
+        self.end_time = None
 
-    logging.info('test preforance')
-    logging.info(f"losste:{metrics['loss']:.5f}|" +
-                 f"acc:{metrics['acc']:.5f}|" +
-                 f"auc:{metrics['auc']:.5f}|" +
-                 f"re:{metrics['pre']:.5f}|" +
-                 f"pre:{metrics['recall']:.5f}|" +
-                 f"f1:{metrics['f1']:.5f}")
+        # record history; do not include score and predictions from train set
+        self.losstr_history = []
+        self.lossva_history = []
 
-    # save test performance
-    test_ckpt_dict = {'predictions': predictions,
-                      'metrics': metrics,
-                      }
-    torch.save(test_ckpt_dict, log_dir / "test_preds.pt")
+        # record predictions and metrics
+        # training metrics not included as its mememory intensive (TODO?)
+        self.scoresva = []
+        self.yva = []
+        self.yhatva = []
+        self.metricsva = None
 
+        self.scoreste = []
+        self.yte = []
+        self.yhatte = []
+        self.metricste = None
+        self.str = "="*25
 
-def trainer(cfg):
-    gpu = cfg.gpu & torch.cuda.is_available()
-    device = torch.device("cuda" if gpu else "cpu")
+    def fit(self):
+        self.start_time = time()
+        for ep in np.arange(self.max_ep):
+            self.current_ep = ep
+            self.train(self.dltr)  # train model
+            self.test(self.dlva, split="valid")  # test model on validation set
 
-    eq50 = '=' * 50
-    exp_name = cfg.model_name
-    log_dir = ut.set_logger(Path.cwd() / cfg.log_dir / exp_name)
-    # writer = SummaryWriter(log_dir=log_dir)
-    logging.info(eq50 + 'training started' + eq50)
-    logging.info(cfg)
-
-    # dataset and data loader
-    dstr = ut.RumexDataset(cfg.train_dir)
-    dsva = ut.RumexDataset(cfg.valid_dir)
-    dltr = ut.train_loader(dstr, cfg.bs)
-    dlva = ut.test_loader(dsva, 2*cfg.bs)
-
-    ntr = len(dstr)
-    n1tr = dstr.rumex.targets.count(1)
-    n0tr = dstr.rumex.targets.count(0)
-
-    nva = len(dsva)
-    n1va = dsva.rumex.targets.count(1)
-    n0va = dsva.rumex.targets.count(0)
-    logging.info(f"(train):{ntr,n1tr,n0tr}, (valid):{nva,n1va,n0va}")
-
-    # model and optimizer
-    model = ut.RumexNet(cfg.model_name)
-    model.to(device)
-    loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
-
-    # optimized lr ranges for different models
-    # resnet: 1e-4, 1e-3
-    # mobilenet: 1e-4, 7e-3
-    # densenet: 1e-4, 1e-3
-    # mnasnet: 1e-3, 1e-2
-    # shufflenet: 5e-3, 5e-2
-
-    lr_dict = {"resnet": 1e-3,
-               "mobilenet": 7e-3,
-               "densenet": 1e-3,
-               "mansnet": 1e-2,
-               "shufflenet": 5e-2}
-
-    optimizer = torch.optim.Adam(model.parameters(),
-                                 lr=lr_dict[cfg.model_name])
-
-    # training loop
-
-    lossva_history = []
-    losstr_history = []
-    for ep in np.arange(cfg.num_epochs):
-        start = time()
-
-        #### train model ##########
-        model.train()
-        running_losstr = 0.0
-        for xtrb, ytrb, _, _ in dltr:
-            # Forward pass
-            xtrb = xtrb.to(device)
-            ytrb = ytrb.to(device)
-            scorebtr = model(xtrb)
-            # loss of each elem in batch
-            losstrb = loss_fn(scorebtr, ytrb)
-
-            # Backward and optimize
-            lossbtr_mean = torch.mean(losstrb)
-            lossbtr_mean.backward()
-            optimizer.step()
-            optimizer.zero_grad()
-            # scheduler.step()
-            running_losstr += torch.sum(losstrb)
-
-        losstr_mean = running_losstr / ntr
-
-        ##### validate model ##########
-        model.eval()
-        with torch.no_grad():
-            fnameva = []
-            scoreva = []
-            yva = []
-            yhatva = []
-            lossva = []
-            for xvab, yvab, _, fnamevab in dlva:
-                xvab = xvab.to(device)
-                yvab = yvab.to(device)
-
-                # Forward pass
-                scorevab = model(xvab)  # logits
-                lossvab = loss_fn(scorevab, yvab)
-                _, yhatvab = torch.max(scorevab, 1)
-
-                # book keeping at batch level
-                fnameva.append(fnamevab)
-                lossva.append(lossvab)
-                scoreva.append(scorevab)
-                yhatva.append(yhatvab)
-                yva.append(yvab)
-
-            lossva = torch.cat(lossva)
-            lossva_mean = torch.mean(lossva)  # mean validation loss for ep
-
-            scoreva = torch.cat(scoreva)
-            yva = torch.cat(yva)
-            yhatva = torch.cat(yhatva)
-            fname = [b for a in fnameva for b in a]  # flatten list of tuples
-
-            predictions = {
-                'yva': yva,
-                'yhatva': yhatva,
-                'scoreva': scoreva[:, 1],
-                'lossva': lossva
-            }
-
-            # metrics
-            metrics = ut.compute_metrics(yva, yhatva, scoreva[:, 1])
-
-            ##### early stopping and checkpoint saving ##########
+            ##### early stopping ##########
             # from deep larning book
-            if ep == 0:
-                es_ep = ep  # i in  book
-                patience_counter = 0  # j in  book
-                best_mean_lossva = np.inf  # nu in book
-            elif ep > 10:
-                if lossva_mean < best_mean_lossva:
+            if self.current_ep == 0:
+                self.es_ep = self.current_ep  # i in  book
+                self.patience_counter = 0  # j in  book
+                self.best_lossva = np.inf  # nu in book
+            elif self.current_ep > 10:
+                if self.current_lossva < self.best_lossva:
                     # update early stopping variables
-                    best_mean_lossva = lossva_mean
-                    patience_counter = 0  # reset patience counter
-                    es_ep = ep  # early stopping epoch (i* in book)
-
-                    # save best model upto now
-                    ckpt_dict = {
-                        'ep': es_ep,
-                        'state_dict': model.state_dict(),
-                        'optim_dict': optimizer.state_dict(),
-                        'predictions': predictions,
-                        'metrics': metrics,
-                        'best_mean_lossva': lossva_mean,
-                        'losstr_history': torch.stack(losstr_history),
-                        'lossva_history': torch.stack(lossva_history)
-                    }
-                    torch.save(ckpt_dict, log_dir / "best.pt")
+                    self.best_lossva = self.current_lossva
+                    self.best_ep = self.current_ep  # es epoch (i* in book)
+                    self.patience_counter = 0  # reset patience counter
+                    # self.save_checkpoint(self.best_ep)
                 else:
-                    patience_counter += 1  # increament patience counter
+                    self.patience_counter += 1
 
-            # # tensorboad logging
-            # writer.add_scalar('train/loss', loss, ep)
-            # for key in metrics.keys():
-            #     name = 'val/' + key
-            #     writer.add_scalar(name, metrics[key], ep)
-
-            et = time() - start
-            logging.info(f"ep:{ep}|" +
-                         f"et:{et:.0f}|" +
-                         f"patience_count:{patience_counter}|" +
-                         f"losstr:{losstr_mean:.5f}|" +
-                         f"lossva:{lossva_mean:.5f}|" +
-                         f"acc:{metrics['acc']:.5f}|" +
-                         f"f1:{metrics['f1']:.5f}")
-
-            # history
-            losstr_history.append(losstr_mean)
-            lossva_history.append(lossva_mean)
-
-            # loss_history[ep, 0] = losstr_mean  # training loss
-            # loss_history[ep, 1] = lossva_mean  # validation loss
-
-            if patience_counter >= args.patience:
-                logging.info(
-                    f"***stopping early at {ep}/{cfg.num_epochs}****")
+            if self.patience_counter > self.patience:
+                print(f"stopping early: best at ep{self.best_ep}{self.str}")
                 break
 
-    # torch.save(loss_history, log_dir / "loss_history.pt")
-    logging.info(eq50 + 'training ended' + eq50)
+            self.end_time = time()
+            et = self.end_time - self.start_time
 
+            print(f"ep:{self.current_ep}/{self.max_ep}|"
+                  + f"et:{et:.0f}|"
+                  + f"losstr:{self.current_losstr:.5f}|"
+                  + f"lossva:{self.current_lossva:.5f}|"
+                  + f"accva:{self.metricsva['acc']:.5f}|"
+                  + f"f1va:{self.metricsva['f1']:.5f}|"
+                  + f"aucva:{self.metricsva['auc']:.5f}"
+                  )
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--train_dir', type=str, default="data/10m/256/train_wa/")
-parser.add_argument('--valid_dir', type=str, default="data/10m/256/valid/")
-parser.add_argument('--test_dir', type=str, default="data/10m/256/test/")
-parser.add_argument('--log_dir', type=str, default="logs_temp")
-parser.add_argument('--model_name', type=str, default="shufflenet")
-parser.add_argument('--patience', type=int, default=5)
-parser.add_argument('--num_epochs', type=int, default=20)
-parser.add_argument('--bs', type=int, default=32)
-parser.add_argument('--gpu', type=bool, default=True)
+        print(f"{self.str}retraining using all data{self.str}")
 
-if __name__ == '__main__':
-    args, unknown = parser.parse_known_args()
-    trainer(args)
+        self.model = self.init_model
+        ds = torch.utils.data.ConcatDataset([self.dltr.dataset,
+                                             self.dlva.dataset])
+        dl = ut.train_loader(ds, self.bs)
+        for ep in np.arange(self.best_ep):
+            self.current_ep = ep
+            self.train(dl)
+            print(f"ep:{self.current_ep}/{self.best_ep}|"
+                  + f"losstr:{self.current_losstr:.5f}")
+
+        self.test(self.dlte, split="test")
+
+        print(f"{self.str}test performance{self.str}")
+        print(f"losste:{self.current_losste:.5f}|"
+              + f"losste:{self.current_losste:.5f}|"
+              + f"accte:{self.metricste['acc']:.5f}|"
+              + f"f1te:{self.metricste['f1']:.5f}|"
+              + f"aucte:{self.metricste['auc']:.5f}")
+
+    def train(self, dl):
+        self.model.train()
+        running_loss = 0.0
+        for xb, yb, _, _ in dl:
+            # Forward pass
+            xb = xb.to(self.device)
+            yb = yb.to(self.device)
+            scoreb = self.model(xb)
+            lossb = self.loss_fn(scoreb, yb)
+            # Backward and optimize
+            lossb_mean = torch.mean(lossb)
+            lossb_mean.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+            # scheduler.step()
+            running_loss += torch.sum(lossb)
+
+        self.current_losstr = running_loss / len(dl.dataset)
+
+        # self.current_losstr = torch.mean(torch.cat(losstr))
+        self.losstr_history.append(self.current_losstr.item())
+
+    def test(self, dl, split):
+        ##### test model ##########
+        self.model.eval()
+        scores = []
+        y = []
+        yhat = []
+        loss = []
+        running_loss = 0.0
+        with torch.no_grad():
+            for xb, yb, _, _ in dl:
+                xb = xb.to(self.device)
+                yb = yb.to(self.device)
+
+                # Forward pass
+                scoreb = self.model(xb)  # logits
+                lossb = self.loss_fn(scoreb, yb)
+                _, yhatb = torch.max(scoreb, 1)
+
+                # book keeping at batch level
+                running_loss += torch.sum(lossb)
+
+                # self.fnameva.append(fnameb)
+                scores.append(scoreb)
+                yhat.append(yhatb)
+                y.append(yb)
+
+            current_loss = running_loss / len(dl.dataset)
+            scores = torch.cat(scores)
+            y = torch.cat(y)
+            yhat = torch.cat(yhat)
+            metrics = ut.compute_metrics(y,
+                                         yhat,
+                                         scores[:, 1])
+
+            if split == "valid":
+                self.current_lossva = current_loss
+                self.lossva_history.append(self.current_lossva.item())
+                self.scoresva = scores
+                self.yva = y
+                self.yhatva = yhat
+                self.metricsva = metrics
+            else:
+                self.current_losste = current_loss
+                self.scoreste = scores
+                self.yte = y
+                self.yhatte = yhat
+                self.metricste = metrics
+
+                # def save_checkpoint(self, epoch):
+                #     ckpt_dict = {
+                #         'best_ep': epoch,
+                #         'state_dict': self.model.state_dict(),
+                #         'optim_dict': self.optimizer.state_dict(),
+                #         'losstr_history': self.losstr_history,
+                #         'lossva_history': self.lossva_history,
+                #         'metricsva': self.metricsva,
+                #         'metricste': self.metricste}
+                #     torch.save(ckpt_dict, self.log_dir / "best.pt")
+                #     # training loop
+
+                # def test(self, dl):
+                #     best_ckpt = torch.load(log_dir / "best.pt")
+
+                #     model = ut.RumexNet(cfg.model_name)
+                #     model.load_state_dict(best_ckpt["state_dict"])
+                #     model.to(device)
+                #     model.eval()
+                #     with torch.no_grad():
+                #         score = []
+                #         loss = []
+                #         y = []
+                #         yhat = []
+                #         ids = []
+                #         for xb, yb, _ in dl:
+                #             xb = xb.to(device)
+                #             yb = yb.to(device)
+
+                #             # Forward pass
+                #             scoreb = model(xb)  # logits
+                #             _, yhatb = torch.max(scoreb, 1)
+                #             lossb = loss_fn(scoreb, yb)
+
+                #             # book keeping at batch level
+                #             score.append(scoreb)
+                #             yhat.append(yhatb)
+                #             loss.append(lossb)
+                #             y.append(yb)
+
+                #         score = torch.cat(score)
+                #         loss = torch.cat(loss)
+                #         y = torch.cat(y)
+                #         yhat = torch.cat(yhat)
+
+                #         predictions = {
+                #             'y': y,
+                #             'yhat': yhat,
+                #             'score': score[:, 1],
+                #             'loss': loss
+                #         }
+
+                #         # metrics
+                #         metrics = ut.compute_metrics(y, yhat, score[:, 1])
+                #         metrics['loss'] = torch.mean(loss)
+
+                #     logging.info('test preforance')
+                #     logging.info(f"losste:{metrics['loss']:.5f}|" +
+                #                  f"acc:{metrics['acc']:.5f}|" +
+                #                  f"auc:{metrics['auc']:.5f}|" +
+                #                  f"re:{metrics['pre']:.5f}|" +
+                #                  f"pre:{metrics['recall']:.5f}|" +
+                #                  f"f1:{metrics['f1']:.5f}")
+                #     # save test performance
+                #     test_ckpt_dict = {'predictions': predictions,
+                #                       'metrics': metrics,
+                #                       }
+                #     torch.save(test_ckpt_dict, log_dir / "test_preds.pt")
+                # parser = argparse.ArgumentParser()
+                # parser.add_argument('--train_dir', type=str, default="data/train_wa/")
+                # parser.add_argument('--valid_dir', type=str, default="data/valid/")
+                # parser.add_argument('--test_dir', type=str, default="data/test/")
+                # parser.add_argument('--model_name', type=str)
+                # parser.add_argument('--max_ep', type=int, default=50)
+                # parser.add_argument('--bs', type=int, default=64)
+                # parser.add_argument('--gpu', type=bool, default=True)
+
+                # if __name__ == '__main__':
+                #     args, unknown = parser.parse_known_args()
+                #     trainer(args)
