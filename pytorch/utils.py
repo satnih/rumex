@@ -89,16 +89,29 @@ def set_logger(log_dir):
     return log_dir
 
 
-def compute_metrics(y, yhat, score):
-    tp = torch.sum((y == 1) & (yhat == 1)).float()
-    tn = torch.sum((y == 0) & (yhat == 0)).float()
-    fp = torch.sum((y == 1) & (yhat == 0)).float()
-    fn = torch.sum((y == 0) & (yhat == 1)).float()
-    acc = (tp+tn)/len(y)
-    recall = tp/(tp + fn)  # predicted pos/condition pos
-    precision = tp/(tp + fp)  # predicted neg/condition neg
-    f1 = 2*precision*recall/(precision+recall)
-    auc = roc_auc_score(y.cpu().numpy(), score.cpu().numpy())
+def compute_metrics(y, yhat, score1):
+    y = y.detach().cpu().numpy()
+    yhat = yhat.detach().cpu().numpy()
+    score1 = score1.detach().cpu().numpy()
+
+    # macro weighs each class equally
+    # micro weights classes based on class prior
+    # micro=macro if classes balanced
+    # in binary classification; micro=macro
+    acc = accuracy_score(y, yhat)
+    recall = recall_score(y, yhat, average="micro")
+    precision = precision_score(y, yhat, average="micro")
+    f1 = f1_score(y, yhat, average="micro")
+    auc = roc_auc_score(y, score1, average="micro")
+    # tp = torch.sum((y == 1) & (yhat == 1)).float()
+    # tn = torch.sum((y == 0) & (yhat == 0)).float()
+    # fp = torch.sum((y == 1) & (yhat == 0)).float()
+    # fn = torch.sum((y == 0) & (yhat == 1)).float()
+    # acc = (tp + tn) / len(y)
+    # recall = tp / (tp + fn)  # predicted pos/condition pos
+    # precision = tp / (tp + fp)  # predicted neg/condition neg
+    # f1 = 2 * precision * recall / (precision + recall)
+
     metrics = {
         'acc': acc,
         'f1': f1,
@@ -109,102 +122,92 @@ def compute_metrics(y, yhat, score):
     return metrics
 
 
-def train(model, dl, optimizer, loss_fn, device):
-    model.to(device)
-    model.train()
-    running_loss = 0.0
-    for xb, yb, _, _ in dl:
-        # Forward pass
-        xb = xb.to(device)
-        yb = yb.to(device)
-        scoreb = model(xb)
-        # loss of each elem in batch
-        lossb = loss_fn(scoreb, yb)
-        lossb_mean = torch.mean(lossb)
+# def train(model, dl, optimizer, loss_fn, device):
+#     model.to(device)
+#     model.train()
+#     running_loss = 0.0
+#     for xb, yb, _, _ in dl:
+#         # Forward pass
+#         xb = xb.to(device)
+#         yb = yb.to(device)
+#         scoreb = model(xb)
+#         # loss of each elem in batch
+#         lossb = loss_fn(scoreb, yb)
+#         lossb_mean = torch.mean(lossb)
 
-        # Backward and optimize
-        lossb_mean.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-        running_loss += torch.sum(lossb)
+#         # Backward and optimize
+#         lossb_mean.backward()
+#         optimizer.step()
+#         optimizer.zero_grad()
+#         running_loss += torch.sum(lossb)
 
-    loss = running_loss / len(dl.dataset)
-    return loss
+#     loss = running_loss / len(dl.dataset)
+#     return loss
 
 
-def validate(model, dl, loss_fn, device):
-    model.to(device)
-    model.eval()
-    with torch.no_grad():
-        fname = []
-        score = []
-        loss = []
-        y = []
-        yhat = []
-        for xb, yb, _, fnameb in dl:
-            xb = xb.to(device)
-            yb = yb.to(device)
+# def validate(model, dl, loss_fn, device):
+#     model.to(device)
+#     model.eval()
+#     with torch.no_grad():
+#         fname = []
+#         score1 = []
+#         loss = []
+#         y = []
+#         yhat = []
+#         for xb, yb, _, fnameb in dl:
+#             xb = xb.to(device)
+#             yb = yb.to(device)
 
-            # Forward pass
-            scoreb = model(xb)  # logits
-            _, yhatb = torch.max(scoreb, 1)
-            lossb = loss_fn(scoreb, yb)
+#             # Forward pass
+#             scoreb = model(xb)  # logits
+#             _, yhatb = torch.max(scoreb, 1)
+#             lossb = loss_fn(scoreb, yb)
 
-            # book keeping at batch level
-            score.append(scoreb)
-            yhat.append(yhatb)
-            loss.append(lossb)
-            fname.append(fnameb)
-            y.append(yb)
+#             # book keeping at batch level
+#             score1.append(scoreb)
+#             yhat.append(yhatb)
+#             loss.append(lossb)
+#             fname.append(fnameb)
+#             y.append(yb)
 
-        score = torch.cat(score)
-        loss = torch.cat(loss)
-        y = torch.cat(y)
-        yhat = torch.cat(yhat)
+#         score1 = torch.cat(score1)
+#         loss = torch.cat(loss)
+#         y = torch.cat(y)
+#         yhat = torch.cat(yhat)
 
-        # flatten list of tuples
-        fname = [y for x in fname for y in x]
+#         # flatten list of tuples
+#         fname = [y for x in fname for y in x]
 
-        # predictions and metrics
-        # _, yhat = torch.max(score, 1)
-        loss_mean = torch.mean(loss)
+#         # predictions and metrics
+#         # _, yhat = torch.max(score1, 1)
+#         loss_mean = torch.mean(loss)
 
-        metrics = compute_metrics(y, yhat, score[:, 1])
-        metrics['loss'] = loss_mean
+#         metrics = compute_metrics(y, yhat, score1[:, 1])
+#         metrics['loss'] = loss_mean
 
-        predictions = {
-            # 'idx': idx,
-            'fname': fname,
-            'y': y,
-            'yhat': yhat,
-            'score': score[:, 1],
-            'loss': loss}
+#         predictions = {
+#             # 'idx': idx,
+#             'fname': fname,
+#             'y': y,
+#             'yhat': yhat,
+#             'score1': score1[:, 1],
+#             'loss': loss}
 
-    return predictions, metrics
+#     return predictions, metrics
 
 
 class RumexDataset(Dataset):
-    def __init__(self, data_dir, train_flag):
+    def __init__(self, data_dir):
         super(RumexDataset, self).__init__()
         imagenet_mean = [0.485, 0.456, 0.406]
         imagenet_std = [0.229, 0.224, 0.225]
-        self.train_flag = train_flag
         sz = 224
-        if train_flag:
-            tfms = T.Compose([
-                T.Resize(sz),
-                T.RandomHorizontalFlip(),
-                T.RandomVerticalFlip(),
-                # T.ColorJitter(),
-                T.ToTensor(),
-                T.Normalize(imagenet_mean, imagenet_std)
-            ])
-        else:
-            tfms = T.Compose([
-                T.Resize(sz),
-                T.ToTensor(),
-                T.Normalize(imagenet_mean, imagenet_std)
-            ])
+
+        tfms = T.Compose([
+            T.Resize(sz),
+            T.ToTensor(),
+            T.Normalize(imagenet_mean, imagenet_std)
+        ])
 
         self.rumex = ImageFolder(data_dir, tfms)
         class_counts = np.bincount(self.rumex.targets)
@@ -231,7 +234,7 @@ def train_loader(ds, bs):
 
 
 def test_loader(ds, bs):
-    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=0)
+    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=12)
     return dl
 
 
