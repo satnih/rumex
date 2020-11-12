@@ -98,25 +98,16 @@ def compute_metrics(y, yhat, score1):
     # micro weights classes based on class prior
     # micro=macro if classes balanced
     # in binary classification; micro=macro
+    auc = roc_auc_score(y, score1)
     acc = accuracy_score(y, yhat)
-    recall = recall_score(y, yhat, average="micro")
-    precision = precision_score(y, yhat, average="micro")
-    f1 = f1_score(y, yhat, average="micro")
-    auc = roc_auc_score(y, score1, average="micro")
-    # tp = torch.sum((y == 1) & (yhat == 1)).float()
-    # tn = torch.sum((y == 0) & (yhat == 0)).float()
-    # fp = torch.sum((y == 1) & (yhat == 0)).float()
-    # fn = torch.sum((y == 0) & (yhat == 1)).float()
-    # acc = (tp + tn) / len(y)
-    # recall = tp / (tp + fn)  # predicted pos/condition pos
-    # precision = tp / (tp + fp)  # predicted neg/condition neg
-    # f1 = 2 * precision * recall / (precision + recall)
-
+    r1 = recall_score(y, yhat)
+    p1 = precision_score(y, yhat)
+    f1 = f1_score(y, yhat)
     metrics = {
         'acc': acc,
         'f1': f1,
-        'pre': precision,
-        'recall': recall,
+        'p1': p1,  # precision for class 1
+        'r1': r1,  # recall for class 1
         'auc': auc
     }
     return metrics
@@ -146,7 +137,7 @@ class RumexDataset(Dataset):
         x, y = self.rumex[idx]
         fname = self.rumex.imgs[idx][0]
         fname = fname.split('/')[-1]
-        return x, y, idx, fname
+        return x, y, fname
 
     def __len__(self):
         return len(self.rumex)
@@ -177,10 +168,14 @@ class RumexNet(nn.Module):
             model = models.resnet50(pretrained=True)
             in_features = model.fc.in_features
             model.fc = nn.Linear(in_features, num_classes)
-        elif model_name == 'inception':
-            model = models.inception_v3(pretrained=True)
+        elif model_name == 'wide_resnet':
+            model = models.wide_resnet50_2(pretrained=True)
             in_features = model.fc.in_features
-            model.fc = nn.Linear(model.fc.in_features, num_classes)
+            model.fc = nn.Linear(in_features, num_classes)
+        elif model_name == 'resnext':
+            model = models.resnext50_32x4d(pretrained=True)
+            in_features = model.fc.in_features
+            model.fc = nn.Linear(in_features, num_classes)
         elif model_name == 'mobilenet':
             model = models.mobilenet_v2(pretrained=True)
             in_features = model.classifier[1].in_features

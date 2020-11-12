@@ -77,20 +77,20 @@ class Trainer(object):
 
         # record predictions and metrics
         # training metrics not included as its mememory intensive (TODO?)
-        self.scoresva = []
-        self.yva = []
-        self.yhatva = []
+        self.scoreva = None
+        self.yva = None
+        self.yhatva = None
         self.metricsva = None
 
-        self.scoreste = []
-        self.yte = []
-        self.yhatte = []
+        self.scorete = None
+        self.yte = None
+        self.yhatte = None
         self.metricste = None
         self.str = "="*25
 
     def fit(self):
-        self.start_time = time()
         for ep in np.arange(self.max_ep):
+            start_time = time()
             self.current_ep = ep
             self.train(self.dltr)  # train model
             self.test(self.dlva, split="valid")  # test model on validation set
@@ -98,7 +98,7 @@ class Trainer(object):
             ##### early stopping ##########
             # from deep larning book
             if self.current_ep == 0:
-                self.es_ep = self.current_ep  # i in  book
+                self.best_ep = self.current_ep  # i in  book
                 self.patience_counter = 0  # j in  book
                 self.best_lossva = np.inf  # nu in book
             elif self.current_ep > 10:
@@ -112,21 +112,23 @@ class Trainer(object):
                     self.patience_counter += 1
 
             if self.patience_counter > self.patience:
-                print(f"stopping early: best at ep{self.best_ep}{self.str}")
+                print(f"{self.str}stopping early{self.str}")
                 break
 
-            self.end_time = time()
-            et = self.end_time - self.start_time
+            end_time = time()
+            et = end_time - start_time
 
             print(f"ep:{self.current_ep}/{self.max_ep}|"
                   + f"et:{et:.0f}|"
                   + f"losstr:{self.current_losstr:.5f}|"
                   + f"lossva:{self.current_lossva:.5f}|"
                   + f"accva:{self.metricsva['acc']:.5f}|"
+                  + f"aucva:{self.metricsva['auc']:.5f}|"
                   + f"f1va:{self.metricsva['f1']:.5f}|"
-                  + f"aucva:{self.metricsva['auc']:.5f}"
+                  + f"p1va:{self.metricsva['p1']:.5f}|"
+                  + f"r1va:{self.metricsva['r1']:.5f}|"
                   )
-
+        print(f"{self.str}best at ep{self.best_ep}{self.str}")
         print(f"{self.str}retraining using all data{self.str}")
 
         self.model = self.init_model
@@ -136,6 +138,7 @@ class Trainer(object):
         for ep in np.arange(self.best_ep):
             self.current_ep = ep
             self.train(dl)
+            torch.save(self.model.state_dict, "full_model.pt")
             print(f"ep:{self.current_ep}/{self.best_ep}|"
                   + f"losstr:{self.current_losstr:.5f}")
 
@@ -143,15 +146,17 @@ class Trainer(object):
 
         print(f"{self.str}test performance{self.str}")
         print(f"losste:{self.current_losste:.5f}|"
-              + f"losste:{self.current_losste:.5f}|"
               + f"accte:{self.metricste['acc']:.5f}|"
+              + f"aucte:{self.metricste['auc']:.5f}"
               + f"f1te:{self.metricste['f1']:.5f}|"
-              + f"aucte:{self.metricste['auc']:.5f}")
+              + f"p1te:{self.metricste['p1']:.5f}|"
+              + f"r1te:{self.metricste['r1']:.5f}|"
+              )
 
     def train(self, dl):
         self.model.train()
         running_loss = 0.0
-        for xb, yb, _, _ in dl:
+        for xb, yb, _ in dl:
             # Forward pass
             xb = xb.to(self.device)
             yb = yb.to(self.device)
@@ -173,13 +178,14 @@ class Trainer(object):
     def test(self, dl, split):
         ##### test model ##########
         self.model.eval()
-        scores = []
+        score = []
         y = []
         yhat = []
         loss = []
+        fname = []
         running_loss = 0.0
         with torch.no_grad():
-            for xb, yb, _, _ in dl:
+            for xb, yb, fnameb in dl:
                 xb = xb.to(self.device)
                 yb = yb.to(self.device)
 
@@ -192,109 +198,35 @@ class Trainer(object):
                 running_loss += torch.sum(lossb)
 
                 # self.fnameva.append(fnameb)
-                scores.append(scoreb)
+                score.append(scoreb)
                 yhat.append(yhatb)
                 y.append(yb)
+                fname.append(fnameb)
 
             current_loss = running_loss / len(dl.dataset)
-            scores = torch.cat(scores)
+
+            # flatten lists
+            fname = [b for a in fname for b in a]  # flatten list of tuples
+            score = torch.cat(score)
             y = torch.cat(y)
             yhat = torch.cat(yhat)
-            metrics = ut.compute_metrics(y,
-                                         yhat,
-                                         scores[:, 1])
+
+            # compute metrics
+            metrics = ut.compute_metrics(y, yhat, score[:, 1])
 
             if split == "valid":
                 self.current_lossva = current_loss
                 self.lossva_history.append(self.current_lossva.item())
-                self.scoresva = scores
+                self.scoreva = score
                 self.yva = y
                 self.yhatva = yhat
+                self.fnameva = fname
                 self.metricsva = metrics
+
             else:
                 self.current_losste = current_loss
-                self.scoreste = scores
+                self.scorete = score
                 self.yte = y
                 self.yhatte = yhat
+                self.fnamete = fname
                 self.metricste = metrics
-
-                # def save_checkpoint(self, epoch):
-                #     ckpt_dict = {
-                #         'best_ep': epoch,
-                #         'state_dict': self.model.state_dict(),
-                #         'optim_dict': self.optimizer.state_dict(),
-                #         'losstr_history': self.losstr_history,
-                #         'lossva_history': self.lossva_history,
-                #         'metricsva': self.metricsva,
-                #         'metricste': self.metricste}
-                #     torch.save(ckpt_dict, self.log_dir / "best.pt")
-                #     # training loop
-
-                # def test(self, dl):
-                #     best_ckpt = torch.load(log_dir / "best.pt")
-
-                #     model = ut.RumexNet(cfg.model_name)
-                #     model.load_state_dict(best_ckpt["state_dict"])
-                #     model.to(device)
-                #     model.eval()
-                #     with torch.no_grad():
-                #         score = []
-                #         loss = []
-                #         y = []
-                #         yhat = []
-                #         ids = []
-                #         for xb, yb, _ in dl:
-                #             xb = xb.to(device)
-                #             yb = yb.to(device)
-
-                #             # Forward pass
-                #             scoreb = model(xb)  # logits
-                #             _, yhatb = torch.max(scoreb, 1)
-                #             lossb = loss_fn(scoreb, yb)
-
-                #             # book keeping at batch level
-                #             score.append(scoreb)
-                #             yhat.append(yhatb)
-                #             loss.append(lossb)
-                #             y.append(yb)
-
-                #         score = torch.cat(score)
-                #         loss = torch.cat(loss)
-                #         y = torch.cat(y)
-                #         yhat = torch.cat(yhat)
-
-                #         predictions = {
-                #             'y': y,
-                #             'yhat': yhat,
-                #             'score': score[:, 1],
-                #             'loss': loss
-                #         }
-
-                #         # metrics
-                #         metrics = ut.compute_metrics(y, yhat, score[:, 1])
-                #         metrics['loss'] = torch.mean(loss)
-
-                #     logging.info('test preforance')
-                #     logging.info(f"losste:{metrics['loss']:.5f}|" +
-                #                  f"acc:{metrics['acc']:.5f}|" +
-                #                  f"auc:{metrics['auc']:.5f}|" +
-                #                  f"re:{metrics['pre']:.5f}|" +
-                #                  f"pre:{metrics['recall']:.5f}|" +
-                #                  f"f1:{metrics['f1']:.5f}")
-                #     # save test performance
-                #     test_ckpt_dict = {'predictions': predictions,
-                #                       'metrics': metrics,
-                #                       }
-                #     torch.save(test_ckpt_dict, log_dir / "test_preds.pt")
-                # parser = argparse.ArgumentParser()
-                # parser.add_argument('--train_dir', type=str, default="data/train_wa/")
-                # parser.add_argument('--valid_dir', type=str, default="data/valid/")
-                # parser.add_argument('--test_dir', type=str, default="data/test/")
-                # parser.add_argument('--model_name', type=str)
-                # parser.add_argument('--max_ep', type=int, default=50)
-                # parser.add_argument('--bs', type=int, default=64)
-                # parser.add_argument('--gpu', type=bool, default=True)
-
-                # if __name__ == '__main__':
-                #     args, unknown = parser.parse_known_args()
-                #     trainer(args)

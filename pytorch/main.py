@@ -4,7 +4,7 @@ import argparse
 import utils as ut
 from torch import optim
 from pathlib import Path
-from trainer_class import Trainer
+from trainer import Trainer
 
 
 parser = argparse.ArgumentParser()
@@ -20,9 +20,9 @@ parser.add_argument('--gpu', type=bool, default=True)
 
 if __name__ == '__main__':
     args, unknown = parser.parse_known_args()
-
+    print(args)
     exp_name = args.model_name
-    log_dir = ut.set_logger(Path.cwd() / "logs_temp" / exp_name)
+    log_dir = ut.set_logger(Path.cwd() / "logs_temp")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # dataset and data loader
@@ -42,8 +42,10 @@ if __name__ == '__main__':
     lr_dict = {"resnet": 1e-3,
                "mobilenet": 7e-3,
                "densenet": 1e-3,
-               "mansnet": 1e-2,
-               "shufflenet": 5e-2}
+               "mnasnet": 1e-2,
+               "shufflenet": 5e-2,
+               "wide_resnet": 5e-4,
+               "resnext": 5e-4}
 
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=lr_dict[args.model_name])
@@ -59,4 +61,4 @@ if __name__ == '__main__':
                       device=device,
                       log_dir=log_dir)
     trainer.fit()
-    torch.save(trainer, log_dir / "temp_trainer.pt")
+    torch.save(trainer, log_dir.joinpath(exp_name+"_trainer.pt"))
