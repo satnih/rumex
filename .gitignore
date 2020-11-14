@@ -20,7 +20,7 @@
 *.json
 *.cfg
 *.ckpt
-*.pt
+*.pt 
 *.pth
 events*
 *logs*

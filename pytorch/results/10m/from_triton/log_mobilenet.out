@@ -1,0 +1,54 @@
+Namespace(bs=64, gpu=True, model_name='mobilenet', num_epochs=50, patience=10, test_dir='data/test/', train_dir='data/train_wa/', valid_dir='data/valid/')
+ep:0/50|et:13|losstr:1.02287|lossva:8.86466|accva:0.67459|aucva:0.50989|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:1/50|et:12|losstr:0.80738|lossva:2.22893|accva:0.67459|aucva:0.48932|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:2/50|et:12|losstr:0.73037|lossva:0.63042|accva:0.67459|aucva:0.55326|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:3/50|et:13|losstr:0.68200|lossva:0.63568|accva:0.67459|aucva:0.48760|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:4/50|et:12|losstr:0.64977|lossva:0.63516|accva:0.67162|aucva:0.51030|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+ep:5/50|et:13|losstr:0.65817|lossva:0.64362|accva:0.67459|aucva:0.61157|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:6/50|et:12|losstr:0.63680|lossva:0.62392|accva:0.67459|aucva:0.65795|f1va:0.00000|p1va:0.00000|r1va:0.00000|
+/home/hiremas1/.local/lib/python3.7/site-packages/sklearn/metrics/_classification.py:1221: UndefinedMetricWarning: Precision is ill-defined and being set to 0.0 due to no predicted samples. Use `zero_division` parameter to control this behavior.
+  _warn_prf(average, modifier, msg_start, len(result))
+ep:7/50|et:13|losstr:0.62389|lossva:0.68343|accva:0.49480|aucva:0.52400|f1va:0.44079|p1va:0.34447|r1va:0.61187|
+ep:8/50|et:13|losstr:0.60797|lossva:0.77575|accva:0.48588|aucva:0.48186|f1va:0.41751|p1va:0.33067|r1va:0.56621|
+ep:9/50|et:13|losstr:0.58596|lossva:0.72689|accva:0.53492|aucva:0.54310|f1va:0.38748|p1va:0.33904|r1va:0.45205|
+ep:10/50|et:13|losstr:0.57290|lossva:0.65531|accva:0.63299|aucva:0.56203|f1va:0.30812|p1va:0.39855|r1va:0.25114|
+ep:11/50|et:13|losstr:0.55379|lossva:0.69612|accva:0.57504|aucva:0.60006|f1va:0.43028|p1va:0.38163|r1va:0.49315|
+ep:12/50|et:13|losstr:0.52735|lossva:0.72066|accva:0.52600|aucva:0.66186|f1va:0.53019|p1va:0.39130|r1va:0.82192|
+ep:13/50|et:12|losstr:0.47919|lossva:1.06838|accva:0.47103|aucva:0.64175|f1va:0.51630|p1va:0.36750|r1va:0.86758|
+ep:14/50|et:12|losstr:0.46216|lossva:1.67216|accva:0.50966|aucva:0.82780|f1va:0.56233|p1va:0.39626|r1va:0.96804|
+ep:15/50|et:12|losstr:0.41202|lossva:0.60585|accva:0.68648|aucva:0.76800|f1va:0.58708|p1va:0.51370|r1va:0.68493|
+ep:16/50|et:13|losstr:0.36655|lossva:7.35162|accva:0.34621|aucva:0.66505|f1va:0.49772|p1va:0.33181|r1va:0.99543|
+ep:17/50|et:13|losstr:0.33773|lossva:1.43170|accva:0.74146|aucva:0.89490|f1va:0.70103|p1va:0.56198|r1va:0.93151|
+ep:18/50|et:13|losstr:0.27839|lossva:2.77395|accva:0.52600|aucva:0.87950|f1va:0.57410|p1va:0.40566|r1va:0.98174|
+ep:19/50|et:13|losstr:0.26335|lossva:4.52460|accva:0.43685|aucva:0.84691|f1va:0.52919|p1va:0.36348|r1va:0.97260|
+ep:20/50|et:13|losstr:0.23367|lossva:5.37273|accva:0.41456|aucva:0.82617|f1va:0.52068|p1va:0.35489|r1va:0.97717|
+=========================stopping early=========================
+=========================best at ep15=========================
+=========================retraining using all data=========================
+ep:0/15|losstr:0.32846
+ep:1/15|losstr:0.25764
+ep:2/15|losstr:0.23193
+ep:3/15|losstr:0.25345
+ep:4/15|losstr:0.24074
+ep:5/15|losstr:0.24624
+ep:6/15|losstr:0.23815
+ep:7/15|losstr:0.21643
+ep:8/15|losstr:0.16556
+ep:9/15|losstr:0.15082
+ep:10/15|losstr:0.15199
+ep:11/15|losstr:0.13318
+ep:12/15|losstr:0.13184
+ep:13/15|losstr:0.15935
+ep:14/15|losstr:0.10317
+=========================test performance=========================
+losste:0.50432|accte:0.90399|aucte:0.80065|f1te:0.61314|p1te:0.79245|r1te:0.50000|
