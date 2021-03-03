@@ -37,7 +37,11 @@ trakomatik/
 pycocotools/*
 results*.txt
 gcp_test*.sh
-
+extra_files/
+data
+gmrf_matlab/
+results*
+latest*
 # MATLAB GitIgnore -------------------------------------------------------------
 *.m~
 *.mat

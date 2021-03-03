@@ -1,52 +1,0 @@
-Downloading: "https://download.pytorch.org/models/wide_resnet50_2-95faca4d.pth" to /home/hiremas1/.cache/torch/hub/checkpoints/wide_resnet50_2-95faca4d.pth
-  0%|          | 0.00/132M [00:00<?, ?B/s]  3%|▎         | 4.56M/132M [00:00<00:02, 47.4MB/s]  7%|▋         | 9.58M/132M [00:00<00:02, 48.8MB/s] 12%|█▏        | 15.8M/132M [00:00<00:02, 52.8MB/s] 19%|█▊        | 24.6M/132M [00:00<00:01, 60.5MB/s] 25%|██▌       | 33.2M/132M [00:00<00:01, 67.0MB/s] 35%|███▍      | 46.0M/132M [00:00<00:01, 78.7MB/s] 41%|████      | 54.2M/132M [00:00<00:01, 80.7MB/s] 48%|████▊     | 63.7M/132M [00:00<00:00, 85.6MB/s] 57%|█████▋    | 74.9M/132M [00:00<00:00, 93.2MB/s] 64%|██████▍   | 85.0M/132M [00:01<00:00, 94.0MB/s] 72%|███████▏  | 94.3M/132M [00:01<00:00, 80.4MB/s] 78%|███████▊  | 102M/132M [00:01<00:00, 80.3MB/s]  84%|████████▍ | 111M/132M [00:01<00:00, 80.7MB/s] 90%|████████▉ | 119M/132M [00:01<00:00, 81.0MB/s] 96%|█████████▌| 127M/132M [00:01<00:00, 82.7MB/s]100%|██████████| 132M/132M [00:01<00:00, 83.1MB/s]Namespace(bs=64, gpu=True, model_name='wide_resnet', num_epochs=50, patience=5, test_dir='data/test/', train_dir='data/train_wa/', valid_dir='data/valid/')
-
-ep:0/50|et:19|losstr:0.47704|lossva:2.04141|accva:0.78900|aucva:0.90119|f1va:0.72901|p1va:0.62623|r1va:0.87215|
-ep:1/50|et:17|losstr:0.29837|lossva:2.59746|accva:0.73254|aucva:0.68592|f1va:0.31818|p1va:0.93333|r1va:0.19178|
-ep:2/50|et:17|losstr:0.17134|lossva:0.94098|accva:0.79198|aucva:0.92546|f1va:0.74359|p1va:0.62080|r1va:0.92694|
-ep:3/50|et:17|losstr:0.11521|lossva:0.80032|accva:0.81724|aucva:0.90088|f1va:0.74949|p1va:0.67647|r1va:0.84018|
-ep:4/50|et:17|losstr:0.09996|lossva:0.40420|accva:0.86330|aucva:0.92835|f1va:0.79464|p1va:0.77729|r1va:0.81279|
-ep:5/50|et:17|losstr:0.06953|lossva:0.53477|accva:0.83507|aucva:0.86877|f1va:0.70712|p1va:0.83750|r1va:0.61187|
-ep:6/50|et:17|losstr:0.08370|lossva:1.98789|accva:0.65379|aucva:0.90296|f1va:0.64643|p1va:0.48409|r1va:0.97260|
-ep:7/50|et:17|losstr:0.15713|lossva:1.65089|accva:0.73105|aucva:0.90349|f1va:0.68522|p1va:0.55337|r1va:0.89954|
-ep:8/50|et:17|losstr:0.11634|lossva:0.51551|accva:0.83655|aucva:0.90085|f1va:0.76596|p1va:0.71713|r1va:0.82192|
-ep:9/50|et:17|losstr:0.05556|lossva:0.42828|accva:0.87816|aucva:0.90514|f1va:0.78756|p1va:0.91018|r1va:0.69406|
-ep:10/50|et:17|losstr:0.03927|lossva:0.45049|accva:0.87964|aucva:0.90405|f1va:0.80851|p1va:0.83824|r1va:0.78082|
-ep:11/50|et:17|losstr:0.03621|lossva:1.00745|accva:0.79792|aucva:0.92781|f1va:0.74436|p1va:0.63259|r1va:0.90411|
-ep:12/50|et:17|losstr:0.03184|lossva:1.46608|accva:0.75780|aucva:0.91173|f1va:0.70841|p1va:0.58235|r1va:0.90411|
-ep:13/50|et:17|losstr:0.04625|lossva:0.79441|accva:0.80684|aucva:0.88079|f1va:0.73140|p1va:0.66792|r1va:0.80822|
-ep:14/50|et:17|losstr:0.08419|lossva:1.00582|accva:0.74146|aucva:0.86641|f1va:0.67897|p1va:0.56966|r1va:0.84018|
-ep:15/50|et:17|losstr:0.05002|lossva:2.09004|accva:0.68945|aucva:0.82048|f1va:0.64395|p1va:0.51359|r1va:0.86301|
-ep:16/50|et:17|losstr:0.03616|lossva:2.46455|accva:0.71471|aucva:0.83907|f1va:0.66782|p1va:0.53760|r1va:0.88128|
-ep:17/50|et:17|losstr:0.07162|lossva:0.56548|accva:0.83061|aucva:0.80544|f1va:0.69519|p1va:0.83871|r1va:0.59361|
-ep:18/50|et:17|losstr:0.06820|lossva:1.04452|accva:0.85141|aucva:0.93528|f1va:0.79839|p1va:0.71480|r1va:0.90411|
-ep:19/50|et:17|losstr:0.03958|lossva:0.48421|accva:0.87964|aucva:0.91785|f1va:0.79901|p1va:0.87500|r1va:0.73516|
-ep:20/50|et:18|losstr:0.01676|lossva:0.59226|accva:0.87667|aucva:0.92727|f1va:0.81514|p1va:0.79565|r1va:0.83562|
-ep:21/50|et:17|losstr:0.00683|lossva:0.65789|accva:0.86330|aucva:0.93769|f1va:0.80172|p1va:0.75918|r1va:0.84932|
-ep:22/50|et:17|losstr:0.01189|lossva:0.63908|accva:0.87370|aucva:0.92420|f1va:0.80726|p1va:0.80180|r1va:0.81279|
-ep:23/50|et:17|losstr:0.03065|lossva:1.18878|accva:0.81724|aucva:0.92999|f1va:0.76482|p1va:0.65789|r1va:0.91324|
-ep:24/50|et:17|losstr:0.05253|lossva:1.68215|accva:0.76969|aucva:0.90708|f1va:0.71971|p1va:0.59581|r1va:0.90868|
-=========================stopping early=========================
-=========================best at ep19=========================
-=========================retraining using all data=========================
-ep:0/19|losstr:0.29514
-ep:1/19|losstr:0.16082
-ep:2/19|losstr:0.07264
-ep:3/19|losstr:0.05762
-ep:4/19|losstr:0.03142
-ep:5/19|losstr:0.01681
-ep:6/19|losstr:0.01111
-ep:7/19|losstr:0.00690
-ep:8/19|losstr:0.00464
-ep:9/19|losstr:0.00786
-ep:10/19|losstr:0.01958
-ep:11/19|losstr:0.01399
-ep:12/19|losstr:0.05922
-ep:13/19|losstr:0.07393
-ep:14/19|losstr:0.08834
-ep:15/19|losstr:0.06576
-ep:16/19|losstr:0.01879
-ep:17/19|losstr:0.01278
-ep:18/19|losstr:0.01292
-=========================test performance=========================
-losste:0.28801|accte:0.93116|aucte:0.91031|f1te:0.77647|p1te:0.76744|r1te:0.78571|
