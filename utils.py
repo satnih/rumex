@@ -66,9 +66,6 @@ class RumexDataset(Dataset):
         ])
 
         self.rumex = ImageFolder(data_dir, tfms)
-        class_counts = np.bincount(self.rumex.targets)
-        class_weights = np.round((1. / class_counts) * class_counts[0])
-        self.sample_weights = class_weights[self.rumex.targets]
 
     def __getitem__(self, idx):
         x, y = self.rumex[idx]
@@ -81,7 +78,7 @@ class RumexDataset(Dataset):
 
 
 def train_loader(ds, bs):
-    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=12)
+    dl = DataLoader(ds, batch_size=bs, shuffle=False, num_workers=12)
     return dl
 
 
@@ -94,13 +91,14 @@ class RumexNet(nn.Module):
     def __init__(self, model_name):
         super(RumexNet, self).__init__()
         num_classes = 2
-        if model_name == 'alexnet':
-            model = models.alexnet(pretrained=True)
-            model.classifier[6] = nn.Linear(4096, num_classes)
-        elif model_name == 'resnet':
+        if model_name == 'resnet':
             model = models.resnet50(pretrained=True)
             in_features = model.fc.in_features
             model.fc = nn.Linear(in_features, num_classes)
+        elif model_name == "vgg":
+            model = models.vgg19_bn(pretrained=True)
+            in_features = model.classifier[6].in_features
+            model.classifier[6] = nn.Linear(in_features, num_classes)
         elif model_name == 'mobilenet':
             model = models.mobilenet_v2(pretrained=True)
             in_features = model.classifier[1].in_features
@@ -127,7 +125,7 @@ class RumexNet(nn.Module):
         return self.model(x)
 
 
-def test(model, test_loader, device, make_metrics=False):
+def test(model, test_loader, device):
     loss_fn = torch.nn.CrossEntropyLoss(reduction="none")
     metrics = None
     nval = len(test_loader.dataset)
@@ -138,32 +136,30 @@ def test(model, test_loader, device, make_metrics=False):
     with torch.no_grad():
         model.eval()
         running_loss_val = 0
-        for x_val_b, y_val_b, _ in test_loader:
-            x_val_b = x_val_b.to(device)
-            y_val_b = y_val_b.to(device)
+        for xb, yb, _ in test_loader:
+            xb = xb.to(device)
+            yb = yb.to(device)
 
             # Forward pass
-            score_val_b = model(x_val_b)  # logits
-            _, yhat_val_b = torch.max(score_val_b, 1)
-            lossb_val = loss_fn(score_val_b, y_val_b)
+            scoreb = model(xb)  # logits
+            _, yhatb = torch.max(scoreb, 1)
+            lossb_val = loss_fn(scoreb, yb)
 
             # book keeping at batch level
             running_loss_val += torch.sum(lossb_val)
 
-            if make_metrics:
-                y_val.append(y_val_b)
-                score_val.append(score_val_b)
-                yhat_val.append(yhat_val_b)
+            y_val.append(yb)
+            score_val.append(scoreb)
+            yhat_val.append(yhatb)
 
         loss_val = running_loss_val / nval
         # loss_val.append(loss_val)
 
-        if make_metrics:
-            # predictions and  metrics
-            y_val = torch.cat(y_val)
-            score_val = torch.cat(score_val)
-            yhat_val = torch.cat(yhat_val)
-            metrics = compute_metrics(y_val, yhat_val, score_val[:, 1])
+        # predictions and  metrics
+        y_val = torch.cat(y_val)
+        score_val = torch.cat(score_val)
+        yhat_val = torch.cat(yhat_val)
+        metrics = compute_metrics(y_val, yhat_val, score_val[:, 1])
     return loss_val, metrics
 
 
@@ -172,19 +168,20 @@ def train(model, optimizer, loss_fn, train_loader, device):
     model = model.to(device)
     running_loss_tr = 0.0
     model.train()
-    for x_tr_b, y_tr_b, _ in train_loader:
+    for xb, yb, file_names in train_loader:
         # Forward pass
-        x_tr_b = x_tr_b.to(device)
-        y_tr_b = y_tr_b.to(device)
+        print(file_names)
+        xb = xb.to(device)
+        yb = yb.to(device)
         optimizer.zero_grad()
-        score_tr_b = model(x_tr_b)
+        scoreb = model(xb)
         # loss of each elem in batch
-        loss_tr_b = loss_fn(score_tr_b, y_tr_b)
-        loss_tr_mean_b = torch.mean(loss_tr_b)
+        lossb = loss_fn(scoreb, yb)
+        lossmean_b = torch.mean(lossb)
 
         # Backward and optimize
-        loss_tr_mean_b.backward(retain_graph=True)
+        lossmean_b.backward(retain_graph=True)
         optimizer.step()
-        running_loss_tr += torch.sum(loss_tr_b)
+        running_loss_tr += torch.sum(lossb)
         loss_tr = running_loss_tr / ntrain
     return model, optimizer, loss_tr
