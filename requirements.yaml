@@ -1,4 +1,4 @@
-name: rumex-pytorch1.7
+name: rumex
 channels:
   - pytorch
   - conda-forge

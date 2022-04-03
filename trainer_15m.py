@@ -1,29 +1,33 @@
 import torch
+
 # import logging
 # import argparse
 import numpy as np
 import utils as ut
 from time import time
 from torch import optim
+
 # from pathlib import Path
 # from torch.utils.tensorboard import SummaryWriter
 
 
 class Trainer(object):
-    def __init__(self,
-                 max_ep=10,
-                 patience=5,
-                 model=None,
-                 optimizer=None,
-                 scheduler=None,
-                 loss_fn=None,
-                 dltr=None,
-                 dlva=None,
-                 dlte=None,
-                 bs=None,
-                 device=None,
-                 log_dir="logs_temp",
-                 exp_name="temp"):
+    def __init__(
+        self,
+        max_ep=10,
+        patience=5,
+        model=None,
+        optimizer=None,
+        scheduler=None,
+        loss_fn=None,
+        dltr=None,
+        dlva=None,
+        dlte=None,
+        bs=None,
+        device=None,
+        log_dir="logs_temp",
+        exp_name="temp",
+    ):
 
         # TODO: add comments to the code
         # TODO: set deraults to reasonable values
@@ -86,7 +90,7 @@ class Trainer(object):
         self.yte = None
         self.yhatte = None
         self.metricste = None
-        self.str = "="*25
+        self.str = "=" * 25
 
     def fit(self):
         for ep in np.arange(self.max_ep):
@@ -96,19 +100,22 @@ class Trainer(object):
             end_time = time()
             et = end_time - start_time
 
-            print(f"ep:{self.current_ep}/{self.max_ep}|"
-                  + f"et:{et:.0f}|"
-                  + f"losstr:{self.current_losstr:.5f}|")
+            print(
+                f"ep:{self.current_ep}/{self.max_ep}|"
+                + f"et:{et:.0f}|"
+                + f"losstr:{self.current_losstr:.5f}|"
+            )
 
         self.test(self.dlte, split="test")
         print(f"{self.str}test performance{self.str}")
-        print(f"losste:{self.current_losste:.5f}|"
-              + f"accte:{self.metricste['acc']:.5f}|"
-              + f"aucte:{self.metricste['auc']:.5f}|"
-              + f"f1te:{self.metricste['f1']:.5f}|"
-              + f"p1te:{self.metricste['p1']:.5f}|"
-              + f"r1te:{self.metricste['r1']:.5f}|"
-              )
+        print(
+            f"losste:{self.current_losste:.5f}|"
+            + f"accte:{self.metricste['acc']:.5f}|"
+            + f"aucte:{self.metricste['auc']:.5f}|"
+            + f"f1te:{self.metricste['f1']:.5f}|"
+            + f"p1te:{self.metricste['p1']:.5f}|"
+            + f"r1te:{self.metricste['r1']:.5f}|"
+        )
 
     def train(self, dl):
         self.model.train()

@@ -6,21 +6,19 @@ from torch import optim
 
 
 class Trainer(object):
-    def __init__(self,
-                 max_ep=10,
-                 patience=5,
-                 model=None,
-                 optimizer=None,
-                 loss_fn=None,
-                 dltr=None,
-                 dlva=None,
-                 dlte=None,
-                 bs=None,
-                 device=None):
-
-        # TODO: add comments to the code
-        # TODO: set deraults to reasonable values
-        # TODO: add code for best LR finder
+    def __init__(
+        self,
+        max_ep=10,
+        patience=5,
+        model=None,
+        optimizer=None,
+        loss_fn=None,
+        dltr=None,
+        dlva=None,
+        dlte=None,
+        bs=None,
+        device=None,
+    ):
 
         self.device = device
 
@@ -68,7 +66,7 @@ class Trainer(object):
         self.yte = None
         self.yhatte = None
         self.metricste = None
-        self.str = "="*25
+        self.str = "=" * 25
 
     def fit(self):
         for ep in np.arange(self.max_ep):
@@ -100,43 +98,46 @@ class Trainer(object):
             end_time = time()
             et = end_time - start_time
 
-            print(f"ep:{self.current_ep}/{self.max_ep}|"
-                  + f"et:{et:.0f}|"
-                  + f"losstr:{self.current_losstr:.5f}|"
-                  + f"lossva:{self.current_lossva:.5f}|"
-                  + f"accva:{self.metricsva['acc']:.5f}|"
-                  + f"aucva:{self.metricsva['auc']:.5f}|"
-                  + f"f1va:{self.metricsva['f1']:.5f}|"
-                  + f"p1va:{self.metricsva['p1']:.5f}|"
-                  + f"r1va:{self.metricsva['r1']:.5f}|"
-                  )
+            print(
+                f"ep:{self.current_ep}/{self.max_ep}|"
+                + f"et:{et:.0f}|"
+                + f"losstr:{self.current_losstr:.5f}|"
+                + f"lossva:{self.current_lossva:.5f}|"
+                + f"accva:{self.metricsva['acc']:.5f}|"
+                + f"aucva:{self.metricsva['auc']:.5f}|"
+                + f"f1va:{self.metricsva['f1']:.5f}|"
+                + f"p1va:{self.metricsva['p1']:.5f}|"
+                + f"r1va:{self.metricsva['r1']:.5f}|"
+            )
         print(f"{self.str}best at ep{self.best_ep}{self.str}")
         print(f"{self.str}retraining using all data{self.str}")
         start_time = time()
         self.model = self.init_model
-        ds = torch.utils.data.ConcatDataset([self.dltr.dataset,
-                                             self.dlva.dataset])
+        ds = torch.utils.data.ConcatDataset([self.dltr.dataset, self.dlva.dataset])
         dl = ut.train_loader(ds, self.bs)
         for ep in np.arange(self.best_ep):
             self.current_ep = ep
             self.train(dl)
-            print(f"ep:{self.current_ep}/{self.best_ep}|"
-                  + f"losstr:{self.current_losstr:.5f}")
+            print(
+                f"ep:{self.current_ep}/{self.best_ep}|"
+                + f"losstr:{self.current_losstr:.5f}"
+            )
             ettr = time() - start_time
 
         start_time = time()
         self.test(self.dlte, split="test")
         ette = time() - start_time
         print(f"{self.str}test performance{self.str}")
-        print(f"ettr:{ettr:.0f}|"
-              + f"ette:{ette:.0f}|"
-              + f"losste:{self.current_losste:.5f}|"
-              + f"accte:{self.metricste['acc']:.5f}|"
-              + f"aucte:{self.metricste['auc']:.5f}|"
-              + f"f1te:{self.metricste['f1']:.5f}|"
-              + f"p1te:{self.metricste['p1']:.5f}|"
-              + f"r1te:{self.metricste['r1']:.5f}|"
-              )
+        print(
+            f"ettr:{ettr:.0f}|"
+            + f"ette:{ette:.0f}|"
+            + f"losste:{self.current_losste:.5f}|"
+            + f"accte:{self.metricste['acc']:.5f}|"
+            + f"aucte:{self.metricste['auc']:.5f}|"
+            + f"f1te:{self.metricste['f1']:.5f}|"
+            + f"p1te:{self.metricste['p1']:.5f}|"
+            + f"r1te:{self.metricste['r1']:.5f}|"
+        )
 
     def train(self, dl):
         self.model.train()

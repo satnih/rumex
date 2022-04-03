@@ -43,12 +43,12 @@ def compute_metrics(y, yhat, score1):
     f1 = f1_score(y, yhat)
     cm = confusion_matrix(y, yhat)
     metrics = {
-        'acc': acc,
-        'f1': f1,
-        'p1': p1,  # precision for class 1
-        'r1': r1,  # recall for class 1
-        'auc': auc,
-        'cm': cm
+        "acc": acc,
+        "f1": f1,
+        "p1": p1,  # precision for class 1
+        "r1": r1,  # recall for class 1
+        "auc": auc,
+        "cm": cm,
     }
     return metrics
 
@@ -59,18 +59,16 @@ class RumexDataset(Dataset):
         imagenet_mean = [0.485, 0.456, 0.406]
         imagenet_std = [0.229, 0.224, 0.225]
 
-        tfms = T.Compose([
-            T.Resize(224),
-            T.ToTensor(),
-            T.Normalize(imagenet_mean, imagenet_std),
-        ])
+        tfms = T.Compose(
+            [T.Resize(224), T.ToTensor(), T.Normalize(imagenet_mean, imagenet_std),]
+        )
 
         self.rumex = ImageFolder(data_dir, tfms)
 
     def __getitem__(self, idx):
         x, y = self.rumex[idx]
         fname = self.rumex.imgs[idx][0]
-        fname = fname.split('/')[-1]
+        fname = fname.split("/")[-1]
         return x, y, fname
 
     def __len__(self):
@@ -78,7 +76,7 @@ class RumexDataset(Dataset):
 
 
 def train_loader(ds, bs):
-    dl = DataLoader(ds, batch_size=bs, shuffle=False, num_workers=12)
+    dl = DataLoader(ds, batch_size=bs, shuffle=True, num_workers=12)
     return dl
 
 
@@ -91,7 +89,7 @@ class RumexNet(nn.Module):
     def __init__(self, model_name):
         super(RumexNet, self).__init__()
         num_classes = 2
-        if model_name == 'resnet':
+        if model_name == "resnet":
             model = models.resnet50(pretrained=True)
             in_features = model.fc.in_features
             model.fc = nn.Linear(in_features, num_classes)
@@ -99,24 +97,24 @@ class RumexNet(nn.Module):
             model = models.vgg19_bn(pretrained=True)
             in_features = model.classifier[6].in_features
             model.classifier[6] = nn.Linear(in_features, num_classes)
-        elif model_name == 'mobilenet':
+        elif model_name == "mobilenet":
             model = models.mobilenet_v2(pretrained=True)
             in_features = model.classifier[1].in_features
             model.classifier[1] = nn.Linear(in_features, num_classes)
-        elif model_name == 'shufflenet':
+        elif model_name == "shufflenet":
             model = models.shufflenet_v2_x0_5(pretrained=True)
             in_features = model.fc.in_features
             model.fc = nn.Linear(in_features, num_classes)
-        elif model_name == 'densenet':
+        elif model_name == "densenet":
             model = models.densenet121(pretrained=True)
             in_features = model.classifier.in_features
             model.classifier = nn.Linear(in_features, num_classes)
-        elif model_name == 'mnasnet':
+        elif model_name == "mnasnet":
             model = models.mnasnet1_0(pretrained=True)
             in_features = model.classifier[1].in_features
             model.classifier[1] = nn.Linear(in_features, num_classes)
-        elif model_name == 'efficientnet':
-            model = EfficientNet.from_pretrained('efficientnet-b0')
+        elif model_name == "efficientnet":
+            model = EfficientNet.from_pretrained("efficientnet-b0")
             in_features = model._fc.in_features
             model._fc = nn.Linear(in_features, num_classes)
         self.model = model
